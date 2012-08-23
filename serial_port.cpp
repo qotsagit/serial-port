@@ -7,7 +7,8 @@
 #endif
 
 int BaudRates[BAUD_LENGTH] = {115200,57600,38400,9600,4800};
-//int PortNumbers[NUMBER_OF_PORTS];
+#define POS_IN_BUF( ptr1, ptr_Buffer ) ( ((size_t)ptr_Buffer)-((size_t)ptr1) )
+
 
 #ifdef _WIN32
 DWORD WINAPI CSerial::_W32Thread(void *Param)
@@ -36,7 +37,6 @@ void *_LINUXThread(void *Param)
             if (RetCode > -1) // all ok
             {
                 Serial->SetnErrors(0);
-                Serial->OnData();
             
 			}else{
                 
@@ -68,7 +68,9 @@ return 0;
 
 CSerial::CSerial(int device_type)
 {
-
+	m_OldLineBuffer = NULL;
+	m_OldLineLength = 0;
+	m_EOLen = EOL_LENGTH;
 	m_emptyCount = 0;
     m_DeviceType = device_type;
     m_Connected = false;
@@ -101,6 +103,71 @@ CSerial::~CSerial()
 	vPorts.clear();
 	m_PortIndex = 0;
 }
+
+void CSerial::PharseLine( char *_Data, int _DataLen )
+{
+
+    int i = 0, Start = 0;
+    int Len;
+    char *DataPtr = (char*)_Data;
+
+    while( i < _DataLen )
+    {
+
+		if( memcmp(DataPtr, "\r\n", 2) == 0 )
+        {
+
+            Len = i - Start;
+            Len = Len + 2;
+            if( m_OldLineLength == 0 )
+            {
+                memset(m_LineBuffer,0,BUFFER_LENGTH);
+                memcpy(m_LineBuffer, (_Data + Start ), Len);
+				OnLine((unsigned char*)m_LineBuffer);
+            }else{
+               
+                memset(m_LineBuffer,0,BUFFER_LENGTH);
+                memcpy(m_LineBuffer, m_OldLineBuffer, m_OldLineLength);
+                memcpy((m_LineBuffer + m_OldLineLength), (_Data + Start ), Len);
+               
+                ClearLineBuffer();
+            }
+           
+
+            DataPtr += m_EOLen;
+            i += m_EOLen;
+            Start += (Len + m_EOLen) - 2;
+
+        }else{
+
+            DataPtr++;
+            i++;
+        };
+
+     };
+
+    if( Start < _DataLen )          // bufor niedociętych linii
+    {
+        Len = _DataLen - Start;
+        m_OldLineBuffer = (char*)realloc(m_OldLineBuffer, Len + m_OldLineLength);
+        memcpy(m_OldLineBuffer, m_OldLineBuffer, m_OldLineLength);
+        memcpy((m_OldLineBuffer + m_OldLineLength), (_Data + Start ), Len);
+        m_OldLineLength += Len;
+    };
+
+};
+
+void CSerial::ClearLineBuffer(void)
+{
+
+    if( m_OldLineBuffer != NULL  )
+    {
+        free( m_OldLineBuffer );
+        m_OldLineBuffer = NULL;
+    }
+    m_OldLineLength = 0;
+}
+
 void CSerial::BuildPorts()
 {
 
@@ -481,13 +548,19 @@ int CSerial::Read()
 	else
 		m_emptyCount = 0;
 	
-	if(m_emptyCount >= 10)
+	if(m_emptyCount >= 5)
 	{
-		m_BufferLength = -1;
+		//m_BufferLength = -1;
+		printf("no signal on port %s\n",GetPortName());
 		m_emptyCount = 0;
 	}
-	//printf("%d\n",m_BufferLength);
-	printf("%d",m_emptyCount);
+	
+	if(m_BufferLength > 0)
+	{
+		OnData(m_SerialBuffer,m_BufferLength);
+		//FoldLine(m_SerialBuffer,m_BufferLength);
+		PharseLine((char*)m_SerialBuffer,m_BufferLength);
+	}
 	return m_BufferLength;
 }
 
@@ -915,7 +988,10 @@ void CSerial::OnConnect()
 void CSerial::OnDisconnect()
 {
 }
-void CSerial::OnData()
+void CSerial::OnLine(unsigned char* buffer)
+{
+}
+void CSerial::OnData(unsigned char* buffer, int length)
 {
 }
 void CSerial::OnValid()
