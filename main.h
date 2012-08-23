@@ -1,9 +1,20 @@
 #include "serial_port.h"
 
+
+typedef struct 
+{
+	unsigned char *name;
+	int count;
+
+}SLine;
+
 class CPort:public CSerial
 {
-    std::vector<unsigned char*> vList;
+	int bad_crc;
+	int lines;
+    std::vector<SLine> vList;
 	void FoldLine( unsigned char *Buffer, int BufferLength );
+	bool CheckChecksum(const char *nmea_line);
 
 public:
     CPort();

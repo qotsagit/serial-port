@@ -552,6 +552,7 @@ int CSerial::Read()
 	{
 		//m_BufferLength = -1;
 		printf("no signal on port %s\n",GetPortName());
+		Beep(800,100);
 		m_emptyCount = 0;
 	}
 	

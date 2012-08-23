@@ -10,7 +10,8 @@ std::vector<char*> vLines;
 
 CPort::CPort():CSerial(DEVICE_GPS)
 {
-    
+    bad_crc = 0;
+	lines = 0;
 }
 
 void CPort::OnConnect()
@@ -38,10 +39,36 @@ void CPort::OnNewScan()
 	printf ("\n NeW SCAN\n");
 }
 
+bool CPort::CheckChecksum(const char *nmea_line) {
+
+	const char *xor_chars = "0123456789ABCDEF";
+	size_t chcount = 1;
+	int _xor = 0;
+
+	size_t len_nmea = strlen(nmea_line);
+	while ( (chcount < len_nmea) && ( nmea_line[chcount] != '*') )
+	_xor = _xor ^ (unsigned short int)(nmea_line[chcount++]);
+
+	if ( nmea_line[chcount] != '*' ) return false;
+
+	if( (nmea_line[chcount + 1] == xor_chars[_xor >> 4]) && (nmea_line[chcount + 2] == xor_chars[_xor & 0x0F]) )
+	    return true;
+	else
+	    return false;
+ 
+}
+
 void CPort::OnLine(unsigned char *line)
 {
 	//printf("LINE:%d%s\n",strlen((char*)line),line);
 	//return;
+	lines++;
+	if(!CheckChecksum((char*)line))
+	{
+		bad_crc++;
+		return;
+	}
+	
 	unsigned char *ptr = (unsigned char*)memchr(line,',',strlen((char*)line));
 	unsigned char *buf = (unsigned char*)malloc( ptr - line + 1 );
 	memset(buf,0,ptr - line + 1);
@@ -50,15 +77,19 @@ void CPort::OnLine(unsigned char *line)
 
 	if(vList.size() == 0)
 	{
-		vList.push_back(buf);
+		SLine Line;
+		Line.name = buf;
+		Line.count = 1;
+		vList.push_back(Line);
 	
 	}else{
 		
 		for( int i = 0; i < vList.size();i++)
 		{	
-			if( memcmp(vList[i],buf,ptr - line + 1) == 0)
+			if( memcmp(vList[i].name,buf,ptr - line + 1) == 0)
 			{
 				add = false;
+				vList[i].count++;
 				break;
 			}
 		}
@@ -67,19 +98,24 @@ void CPort::OnLine(unsigned char *line)
 
 	if(add)
 	{	
-		system("cls");
-		printf("FOUND NEW %s\n",buf);
-		vList.push_back(buf);
-		for( int i = 0; i < vList.size();i++)
-		{
-			
-			printf("%d : \t%s\n",i,vList[i]);
-		}
+		
+		SLine Line;
+		Line.name = buf;
+		Line.count = 1;
+
+		vList.push_back(Line);
+		
 	}else{
 	
 		free(buf);
 	}
 
+	system("cls");
+	for( int i = 0; i < vList.size();i++)
+		printf("%d : \t%s -> %d\n",i,vList[i].name,vList[i].count);
+	
+	printf("Bad crc: %d\n",bad_crc);
+	printf("NMEA Lines: %d\n",lines);
 }
 
 
