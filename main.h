@@ -11,6 +11,8 @@ typedef struct
 class CPort:public CSerial
 {
 	int bad_crc;
+	int data_len;
+	int line_len;
 	int lines;
     std::vector<SLine> vList;
 	void FoldLine( unsigned char *Buffer, int BufferLength );

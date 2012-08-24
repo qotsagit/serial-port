@@ -114,16 +114,17 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
     while( i < _DataLen )
     {
 
-		if( memcmp(DataPtr, "\r\n", 2) == 0 )
+		if( memcmp(DataPtr, "\n", 1) == 0)
         {
 
             Len = i - Start;
-            Len = Len + 2;
+            Len = Len + 1;
             if( m_OldLineLength == 0 )
             {
                 memset(m_LineBuffer,0,BUFFER_LENGTH);
                 memcpy(m_LineBuffer, (_Data + Start ), Len);
-				OnLine((unsigned char*)m_LineBuffer);
+				
+				
             }else{
                
                 memset(m_LineBuffer,0,BUFFER_LENGTH);
@@ -133,10 +134,11 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
                 ClearLineBuffer();
             }
            
-
-            DataPtr += m_EOLen;
+			OnLine((unsigned char*)m_LineBuffer);
+            
+			DataPtr += m_EOLen;
             i += m_EOLen;
-            Start += (Len + m_EOLen) - 2;
+            Start += (Len + m_EOLen) - 1;
 
         }else{
 
@@ -150,6 +152,7 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
     {
         Len = _DataLen - Start;
         m_OldLineBuffer = (char*)realloc(m_OldLineBuffer, Len + m_OldLineLength);
+		//memset(m_OldLineBuffer,0, Len + m_OldLineLength);
         memcpy(m_OldLineBuffer, m_OldLineBuffer, m_OldLineLength);
         memcpy((m_OldLineBuffer + m_OldLineLength), (_Data + Start ), Len);
         m_OldLineLength += Len;
@@ -540,7 +543,7 @@ bool CSerial::GetIsConnected()
 
 int CSerial::Read()
 {
-    memset(m_SerialBuffer,0,BUFFER);
+    memset(m_SerialBuffer,0,BUFFER + 1);
     m_BufferLength = ReadPort(m_ComPort,m_SerialBuffer,BUFFER);
 	
 	if(m_BufferLength == 0)

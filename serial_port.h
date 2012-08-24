@@ -24,7 +24,7 @@
 #define DEVICE_AIS			1
 
 #define BUFFER				4096
-#define EOL_LENGTH			2
+#define EOL_LENGTH			1
 
 #define NUMBER_OF_PORTS		256
 #define BAUD_LENGTH			5
@@ -44,7 +44,7 @@ typedef struct
 
 class CSerial
 {
-	unsigned char m_SerialBuffer[BUFFER];
+	unsigned char m_SerialBuffer[BUFFER + 1];
 #ifdef _WIN32
 	static DWORD WINAPI _W32Thread(void *Param);
 #endif

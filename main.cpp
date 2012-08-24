@@ -4,7 +4,7 @@
 #include <string.h>
 
 #define POS_IN_BUF( ptr1, ptr_Buffer ) ( ((size_t)ptr_Buffer)-((size_t)ptr1) )
-#define BUFFER_LENGTH 1024
+#define BUFFER_LENGTH 64
 unsigned char _LineBuffer[BUFFER_LENGTH];
 std::vector<char*> vLines;
 
@@ -12,6 +12,8 @@ CPort::CPort():CSerial(DEVICE_GPS)
 {
     bad_crc = 0;
 	lines = 0;
+	data_len = 0;
+	line_len = 0;
 }
 
 void CPort::OnConnect()
@@ -21,6 +23,7 @@ void CPort::OnConnect()
 
 void CPort::OnData(unsigned char *buffer, int length)
 {
+	data_len+=length;
 	//printf("%s",buffer);
 }
 
@@ -65,6 +68,9 @@ void CPort::OnLine(unsigned char *line)
 	lines++;
 	if(!CheckChecksum((char*)line))
 	{
+		printf("Bad crc: %d\n",bad_crc);
+		printf("%s",line);
+		Sleep(5);
 		bad_crc++;
 		return;
 	}
@@ -75,18 +81,11 @@ void CPort::OnLine(unsigned char *line)
 	memcpy(buf,line, ptr - line);
 	bool add = true;
 
-	if(vList.size() == 0)
+	if(vList.size() != 0)
 	{
-		SLine Line;
-		Line.name = buf;
-		Line.count = 1;
-		vList.push_back(Line);
-	
-	}else{
-		
 		for( int i = 0; i < vList.size();i++)
 		{	
-			if( memcmp(vList[i].name,buf,ptr - line + 1) == 0)
+			if( memcmp(vList[i].name,buf,ptr - line) == 0)
 			{
 				add = false;
 				vList[i].count++;
@@ -110,12 +109,15 @@ void CPort::OnLine(unsigned char *line)
 		free(buf);
 	}
 
-	system("cls");
-	for( int i = 0; i < vList.size();i++)
-		printf("%d : \t%s -> %d\n",i,vList[i].name,vList[i].count);
+	//system("cls");
+	//for( int i = 0; i < vList.size();i++)
+		//printf("%d : \t%s -> %d\n",i,vList[i].name,vList[i].count);
 	
-	printf("Bad crc: %d\n",bad_crc);
-	printf("NMEA Lines: %d\n",lines);
+	//printf("Bad crc: %d\n",bad_crc);
+	//printf("NMEA Lines: %d\n",lines);
+	//line_len += strlen((char*)line);
+	//printf("Data: %d Line %d",data_len,line_len);
+
 }
 
 
@@ -152,9 +154,10 @@ int main()
 
 	Serial1->Start();
 	system("pause");
+	system("cls");
 	Serial1->Stop();
     
 	delete Serial1;
-
+	system("pause");
 	_CrtDumpMemoryLeaks();
 }
