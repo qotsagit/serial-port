@@ -120,6 +120,17 @@ void CPort::OnLine(unsigned char *line)
 
 }
 
+void CPort::OnStop()
+{
+	FILE *f = fopen("nmealog.txt","w");
+	
+	for( int i = 0; i < vList.size();i++)
+		fprintf(f,"%d : \t%s -> %d\n",i,vList[i].name,vList[i].count);
+	
+	fprintf(f,"Bad crc: %d\n",bad_crc);
+	fprintf(f,"NMEA Lines: %d\n",lines);
+	fclose(f);
+}
 
 int main()
 {
@@ -131,6 +142,7 @@ int main()
 		system("pause");
 		return 0;
 	}
+	
 	for(size_t i = 0; i < Serial1->GetPortInfoLength(); i++)
 	{
 		printf("[%d]: %s\n",i,Serial1->GetPortInfo(i).port_name);
@@ -153,8 +165,20 @@ int main()
 	
 
 	Serial1->Start();
-	system("pause");
+	//system("pause");
 	system("cls");
+
+	int key = 0;
+	for(;;)
+	{
+		key = getchar();
+		if (key == 'x')
+		{
+			printf("x pressed exiting");
+			break;
+		}
+	}
+
 	Serial1->Stop();
     
 	delete Serial1;

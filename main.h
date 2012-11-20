@@ -26,4 +26,5 @@ public:
 	virtual void OnInvalid();
 	virtual void OnValid();
 	virtual void OnNewScan();
+	virtual void OnStop();
 };

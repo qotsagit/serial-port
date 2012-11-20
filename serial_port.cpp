@@ -188,7 +188,8 @@ void CSerial::BuildPorts()
         wsprintf(port_name,L"\\\\.\\COM%d",port_number);
         //Try to open the port
         bool bSuccess = false;
-        HANDLE hPort = CreateFile(port_name, GENERIC_READ , 0, 0, OPEN_EXISTING, 0, 0);
+		fwprintf(stderr,L"opening port %s\n",port_name);
+        HANDLE hPort = CreateFile(port_name, GENERIC_READ , 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
         if (hPort == INVALID_HANDLE_VALUE)
         {
             DWORD dwError = GetLastError();
