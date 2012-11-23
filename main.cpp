@@ -68,8 +68,8 @@ void CPort::OnLine(unsigned char *line)
 	lines++;
 	if(!CheckChecksum((char*)line))
 	{
-		printf("Bad crc: %d\n",bad_crc);
-		printf("%s",line);
+	//	printf("Bad crc: %d\n",bad_crc);
+//		printf("%s",line);
 		Sleep(5);
 		bad_crc++;
 		return;
@@ -109,12 +109,13 @@ void CPort::OnLine(unsigned char *line)
 		free(buf);
 	}
 
-	//system("cls");
-	//for( int i = 0; i < vList.size();i++)
-		//printf("%d : \t%s -> %d\n",i,vList[i].name,vList[i].count);
+	system("cls");
+	for( int i = 0; i < vList.size();i++)
+		printf("%d : \t%s -> %d\n",i,vList[i].name,vList[i].count);
 	
 	//printf("Bad crc: %d\n",bad_crc);
-	//printf("NMEA Lines: %d\n",lines);
+	printf("NMEA Lines: %d\n",lines);
+	printf("x potem ENTER - koniec programu. log zapisany w pliku nmealog.txt ");
 	//line_len += strlen((char*)line);
 	//printf("Data: %d Line %d",data_len,line_len);
 
@@ -127,7 +128,7 @@ void CPort::OnStop()
 	for( int i = 0; i < vList.size();i++)
 		fprintf(f,"%d : \t%s -> %d\n",i,vList[i].name,vList[i].count);
 	
-	fprintf(f,"Bad crc: %d\n",bad_crc);
+	//fprintf(f,"Bad crc: %d\n",bad_crc);
 	fprintf(f,"NMEA Lines: %d\n",lines);
 	fclose(f);
 }
@@ -149,7 +150,7 @@ int main()
 	}
 	
 	int idport, idbaud;
-	printf("Port id ?");
+	printf("Port id ?(cyferka w nawiasie przy nazwie portu)");
 	scanf("%d",&idport);
 
 	for(size_t i = 0; i < Serial1->GetBaudInfoLength(); i++)
@@ -158,7 +159,7 @@ int main()
 	}
 
 		
-	printf("baud id ?");
+	printf("baud id ?(cyferka w nawiasie przy predkosciach)");
 	scanf("%d",&idbaud);
 	Serial1->SetPortIndex(idport);
 	Serial1->SetBaudIndex(idbaud); 
