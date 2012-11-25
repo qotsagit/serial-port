@@ -36,6 +36,13 @@ typedef struct
 	char port_string[PORT_STRING_LENGTH];
 } SPorts;
 
+typedef struct 
+{
+	unsigned char *name;
+	int count;
+
+}SSignal;
+
 class CSerial
 {
 	unsigned char m_SerialBuffer[BUFFER + 1];
@@ -46,7 +53,9 @@ class CSerial
 	HANDLE m_ComPort;
 	std::vector <SPorts> vPorts;
 	std::vector <SPorts>::iterator itvPorts;
-
+	std::vector <SSignal> vSignals;				//sygnaly NMEA
+	
+	int m_BadCrc,m_LinesCount;
 	int m_EOLen;
 	char m_LineBuffer[BUFFER_LENGTH];
 	char *m_OldLineBuffer;
@@ -77,7 +86,9 @@ class CSerial
 	int ReadPort(HANDLE port, unsigned char *, int);
 	void FoldLine( unsigned char *Buffer, int BufferLength );
 	void PharseLine( char *_Data, int _DataLen );
+	void NMEASignal(unsigned char *Line);
 	void ClearLineBuffer(void);
+	bool CheckChecksum(const char *nmea_line);
 	
 public:
 
@@ -117,18 +128,26 @@ public:
         void SetNumberOfPorts(int val);
 		void SetPortIndex(int id);
 		void SetBaudIndex(int id);
+
+		bool SetPort(char *port);
+		bool SetBaud(int baud);
+
 		int GetPortIndex();
 		int GetBaudIndex();
+
+		size_t GetSignalCount();
+		SSignal *GetSignal(int idx);
 				
 		virtual void OnConnect();
 		virtual void OnDisconnect();
 		virtual void OnData(unsigned char *buffer, int length);
-		virtual void OnExit();			// no gps found plugin ends working
+		virtual void OnExit();			
 		virtual void OnLine(unsigned char *buffer);
 		virtual void OnStop();			// stop pressed or stopped
 		virtual void OnStart();			// start
 		virtual void OnAfterMainLoop();
 		virtual void OnBeforeMainLoop();
 		virtual void OnReconnect();
+		virtual void OnNewSignal(); // nowy znaleziony typ danych w sygnale
 };
 

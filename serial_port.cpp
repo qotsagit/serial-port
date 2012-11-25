@@ -65,6 +65,8 @@ return 0;
 
 CSerial::CSerial()
 {
+	m_BadCrc = 0;
+	m_LinesCount = 0;
 	m_OldLineBuffer = NULL;
 	m_OldLineLength = 0;
 	m_EOLen = EOL_LENGTH;
@@ -131,6 +133,7 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
             }
            
 			OnLine((unsigned char*)m_LineBuffer);
+			NMEASignal((unsigned char*)m_LineBuffer);
             
 			DataPtr += m_EOLen;
             i += m_EOLen;
@@ -155,6 +158,69 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
     };
 
 };
+
+void CSerial::NMEASignal(unsigned char *line)
+{
+	m_LinesCount++;
+	
+	if(!CheckChecksum((const char*)line))
+	{
+		m_BadCrc++;
+		return;
+	}
+	
+	unsigned char *ptr = (unsigned char*)memchr(line,',',strlen((char*)line));
+	unsigned char *buf = (unsigned char*)malloc( ptr - line + 1 );
+	memset(buf,0,ptr - line + 1);
+	memcpy(buf,line, ptr - line);
+	bool add = true;
+
+	if(vSignals.size() != 0)
+	{
+		for( int i = 0; i < vSignals.size();i++)
+		{	
+			if( memcmp(vSignals[i].name,buf,ptr - line) == 0)
+			{
+				add = false;
+				vSignals[i].count++;
+				break;
+			}
+		}
+		
+	}
+
+	if(add)
+	{	
+		SSignal Signal;
+		Signal.name = buf;
+		Signal.count = 1;
+		vSignals.push_back(Signal);
+		OnNewSignal();
+		
+	}else{
+	
+		free(buf);
+	}
+}
+
+bool CSerial::CheckChecksum(const char *nmea_line) {
+
+	const char *xor_chars = "0123456789ABCDEF";
+	size_t chcount = 1;
+	int _xor = 0;
+
+	size_t len_nmea = strlen(nmea_line);
+	while ( (chcount < len_nmea) && ( nmea_line[chcount] != '*') )
+	_xor = _xor ^ (unsigned short int)(nmea_line[chcount++]);
+
+	if ( nmea_line[chcount] != '*' ) return false;
+
+	if( (nmea_line[chcount + 1] == xor_chars[_xor >> 4]) && (nmea_line[chcount + 2] == xor_chars[_xor & 0x0F]) )
+	    return true;
+	else
+	    return false;
+ 
+}
 
 void CSerial::ClearLineBuffer(void)
 {
@@ -432,58 +498,91 @@ bool CSerial::Reconnect()
         return false;
 
 
-    if (m_NumberOfPorts == -1)
-    {
-        BuildPorts();
-        return false;
-    }
+   // if (m_NumberOfPorts == -1)
+   // {
+   //     BuildPorts();
+   //     return false;
+   // }
 
 
-    if (m_OpenPort)
-    {
+   // if (m_OpenPort)
+   // {
         //ClosePort(_SerialPort);
-		if(m_ComPort != INVALID_HANDLE_VALUE)
-			CloseHandle(m_ComPort);
-		m_ComPort = NULL;
-        m_OpenPort = false;
-    }
+//		if(m_ComPort != INVALID_HANDLE_VALUE)
+	//		CloseHandle(m_ComPort);
+	//	m_ComPort = NULL;
+    //    m_OpenPort = false;
+   // }
 
-    m_ValidDevice = false;
+    //m_ValidDevice = false;
 
-    if (m_BaudIndex >=  BAUD_LENGTH && !m_FirstTime)
-    {
+    //if (m_BaudIndex >=  BAUD_LENGTH && !m_FirstTime)
+    //{
 		
-        m_BaudIndex = 0;
-        m_nErrors++;
-        m_PortIndex++;
+      //  m_BaudIndex = 0;
+       // m_nErrors++;
+       // m_PortIndex++;
 
-        if (m_PortIndex > m_NumberOfPorts)
-        {
-            m_PortIndex = 0;			// zacznij od pierwszego portu w tablicy portów
-            BuildPorts();
+        //if (m_PortIndex > m_NumberOfPorts)
+        //{
+          //  m_PortIndex = 0;			// zacznij od pierwszego portu w tablicy portów
+           // BuildPorts();
         
-        }
-        else
-        {
+        //}
+        //else
+        //{
             // -1 brak portów w systemie
-            return false;
-        }
-    }
+          //  return false;
+        //}
+    //}
 
 	bool con = false;
 	m_FirstTime = false;
 	if((int)vPorts.size() > m_PortIndex)
 	{
-		
-		con = Connect(vPorts[m_PortIndex].port_string,BaudRates[m_BaudIndex]);
-		
+		con = Connect(vPorts[m_PortIndex].port_string,BaudRates[m_BaudIndex]);	
 		OnReconnect();
 	}
     
-	m_BaudIndex++;
+	//m_BaudIndex++;
 	
     return con;
 }
+
+bool CSerial::SetPort(char *port)
+{
+	if(vPorts.size() == 0)
+		return false;
+	
+	for(size_t i = 0;  i < vPorts.size();i++)
+	{
+		if(strcmp(vPorts[i].port_name,port) == 0)
+		{
+			m_PortIndex = i;
+			return true;
+		}
+	}
+	
+	return false;
+}
+
+
+bool CSerial::SetBaud(int baud)
+{
+	for(size_t i = 0; i < BAUD_LENGTH;i++)
+	{ 
+		if(BaudRates[i] == baud)
+		{
+			m_BaudIndex = i;
+			return true;
+		}
+	}
+	
+	return false;
+}
+
+
+
 void CSerial::SetPortIndex(int id)
 {
 	m_PortIndex = id;
@@ -513,6 +612,18 @@ bool CSerial::GetIsConnected()
 {
     return m_Connected;
 }
+
+size_t CSerial::GetSignalCount()
+{
+	return vSignals.size();
+}
+
+SSignal *CSerial::GetSignal(int idx)
+{
+	return &vSignals[idx];
+}
+
+
 
 int CSerial::Read()
 {
@@ -940,5 +1051,8 @@ void CSerial::OnAfterMainLoop()
 {
 }
 void CSerial::OnReconnect()
+{
+}
+void CSerial::OnNewSignal()
 {
 }
