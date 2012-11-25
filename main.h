@@ -23,8 +23,5 @@ public:
     virtual void OnConnect();
     virtual void OnData(unsigned char* buffer, int length);
 	virtual void OnLine(unsigned char* line);
-	virtual void OnInvalid();
-	virtual void OnValid();
-	virtual void OnNewScan();
 	virtual void OnStop();
 };

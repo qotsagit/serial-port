@@ -16,12 +16,6 @@
 #endif
 #include "vector"
 
-#define _GPS				"$GP"
-#define _GPSAIS				"$AI"
-#define _AIS				"!AI"
-
-#define DEVICE_GPS			0
-#define DEVICE_AIS			1
 
 #define BUFFER				4096
 #define EOL_LENGTH			1
@@ -59,7 +53,6 @@ class CSerial
 	int m_OldLineLength;
 	unsigned char _LineBuffer[BUFFER_LENGTH];
 	int m_emptyCount;			// flaga jest decrementowana kiedy bufor odczytu z pliku jest rowny 0
-	int m_DeviceType;
 	int m_NumberOfPorts;		// iloœæ portów do skanowania
 	int m_BaudIndex;			// index baudrate w tablicy baud rate
 	int m_PortIndex;			// index portu w tablicy portów
@@ -88,7 +81,7 @@ class CSerial
 	
 public:
 
-		CSerial(int device_type);
+		CSerial();
 		virtual ~CSerial();
 		int GetBaudInfo(int id);
 		size_t GetBaudInfoLength();
@@ -96,7 +89,7 @@ public:
 		SPorts GetPortInfo(int id);
 		void ShowError();
 		int GetDeviceType();
-		bool Connect(char port_string[PORT_STRING_LENGTH], int baud_rate);
+		bool Connect(char *port_string, int baud_rate);
 		void Disconnect();
 		int GetLength();				// buffer length
 		bool GetStop();
@@ -105,7 +98,6 @@ public:
 		bool GetIsConnected();
 		int GetnErrors();				//retrun number of connection try errors
 		void SetnErrors(int n);			// set number of connection tries
-		bool IsValidDevice();			// serial port data is really device data
 		bool GetWorkingFlag();
 		void SetWorkingFlag(bool stop);
 		char *GetPortName();            // nazwa portu
@@ -133,11 +125,8 @@ public:
 		virtual void OnData(unsigned char *buffer, int length);
 		virtual void OnExit();			// no gps found plugin ends working
 		virtual void OnLine(unsigned char *buffer);
-		virtual void OnValid();			// valid gps
-		virtual void OnInvalid();		// not valid gps
 		virtual void OnStop();			// stop pressed or stopped
 		virtual void OnStart();			// start
-		virtual void OnNewScan();		// new scan begins
 		virtual void OnAfterMainLoop();
 		virtual void OnBeforeMainLoop();
 		virtual void OnReconnect();

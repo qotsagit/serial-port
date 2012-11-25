@@ -3,12 +3,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#define POS_IN_BUF( ptr1, ptr_Buffer ) ( ((size_t)ptr_Buffer)-((size_t)ptr1) )
-#define BUFFER_LENGTH 64
 unsigned char _LineBuffer[BUFFER_LENGTH];
 std::vector<char*> vLines;
 
-CPort::CPort():CSerial(DEVICE_GPS)
+CPort::CPort():CSerial()
 {
     bad_crc = 0;
 	lines = 0;
@@ -25,21 +23,6 @@ void CPort::OnData(unsigned char *buffer, int length)
 {
 	data_len+=length;
 	//printf("%s",buffer);
-}
-
-void CPort::OnInvalid()
-{
-	printf ("\nINVALID: %d\n",GetDeviceType());
-}
-
-void CPort::OnValid()
-{
-	printf ("\nVALID: %d\n",this->GetDeviceType());
-}
-
-void CPort::OnNewScan()
-{
-	printf ("\n NeW SCAN\n");
 }
 
 bool CPort::CheckChecksum(const char *nmea_line) {

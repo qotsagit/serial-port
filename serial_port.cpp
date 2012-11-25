@@ -7,9 +7,6 @@
 #endif
 
 int BaudRates[BAUD_LENGTH] = {115200,57600,38400,9600,4800};
-#define POS_IN_BUF( ptr1, ptr_Buffer ) ( ((size_t)ptr_Buffer)-((size_t)ptr1) )
-
-
 #ifdef _WIN32
 DWORD WINAPI CSerial::_W32Thread(void *Param)
 #endif
@@ -66,13 +63,12 @@ return 0;
 }
 
 
-CSerial::CSerial(int device_type)
+CSerial::CSerial()
 {
 	m_OldLineBuffer = NULL;
 	m_OldLineLength = 0;
 	m_EOLen = EOL_LENGTH;
 	m_emptyCount = 0;
-    m_DeviceType = device_type;
     m_Connected = false;
     m_NumberOfPorts = -1;
     m_BaudIndex = 0;
@@ -403,7 +399,7 @@ char *CSerial::GetPortName()
 		return NULL;
 }
 
-bool CSerial::Connect(char port_string[PORT_STRING_LENGTH], int baud_rate)
+bool CSerial::Connect(char *port_string, int baud_rate)
 {
     if (m_Stop) return false;
 
@@ -439,7 +435,6 @@ bool CSerial::Reconnect()
     if (m_NumberOfPorts == -1)
     {
         BuildPorts();
-        OnNewScan();
         return false;
     }
 
@@ -466,7 +461,7 @@ bool CSerial::Reconnect()
         {
             m_PortIndex = 0;			// zacznij od pierwszego portu w tablicy portów
             BuildPorts();
-            OnNewScan();
+        
         }
         else
         {
@@ -514,29 +509,6 @@ int CSerial::GetBaudIndex()
 	return m_BaudIndex - 1;
 }
 
-
-bool CSerial::IsValidDevice()
-{
-    if (m_Stop) return false;
-
-    if (m_ValidDevice)
-        return true;
-
-    if (GetDeviceType() == m_DeviceType)
-    {
-        OnValid();
-        m_ValidDevice = true;
-        return true;
-    }
-    else
-    {
-        OnInvalid();
-        m_ValidDevice = false;
-        return false;
-    }
-
-}
-
 bool CSerial::GetIsConnected()
 {
     return m_Connected;
@@ -569,53 +541,6 @@ int CSerial::Read()
 	return m_BufferLength;
 }
 
-int CSerial::GetDeviceType()
-{
-	   
-	char *find = NULL;
-    int from = 0;
-    
-	if(m_BufferLength < 0)
-		return -1;
-    
-	//printf("%s %d\n",m_SerialBuffer,m_BufferLength);
-
-	switch(m_DeviceType)
-    {
-
-        case DEVICE_AIS:
-            find = (char*)memchr(m_SerialBuffer,'!',m_BufferLength);
-        break;
-
-        case DEVICE_GPS:
-            find = (char*)memchr(m_SerialBuffer,'$',m_BufferLength);
-        break;
-    }
-
-
-    if (find == NULL)
-    {
-        find = (char*)memchr(m_SerialBuffer,'\n',m_BufferLength);
-        if (find == NULL)
-            return -1;
-        else
-            from = 1;
-
-    }
-    else
-    {
-        from = 0;
-    }
-
-    if (memcmp(find + from,_AIS,3)==0)
-        return DEVICE_AIS;
-    if (memcmp(find + from,_GPSAIS,3)==0)
-        return DEVICE_AIS;
-    if (memcmp(find + from,_GPS,3)==0)
-        return DEVICE_GPS;
-
-    return -1;
-}
 
 void CSerial::SetLength(int size)
 {
@@ -999,12 +924,6 @@ void CSerial::OnLine(unsigned char* buffer)
 void CSerial::OnData(unsigned char* buffer, int length)
 {
 }
-void CSerial::OnValid()
-{
-}
-void CSerial::OnInvalid()
-{
-}
 void CSerial::OnExit()
 {
 }
@@ -1012,9 +931,6 @@ void CSerial::OnStart()
 {
 }
 void CSerial::OnStop()
-{
-}
-void CSerial::OnNewScan()
 {
 }
 void CSerial::OnBeforeMainLoop()
