@@ -43,7 +43,7 @@ bool CPort::CheckChecksum(const char *nmea_line) {
 
 void CPort::OnLine(unsigned char *line)
 {
-	//printf("LINE:%d%s\n",strlen((char*)line),line);
+	printf("LINE:%d%s\n",strlen((char*)line),line);
 	//return;
 	//lines++;
 	//if(!CheckChecksum((char*)line))
@@ -126,6 +126,8 @@ int main()
 {
     CPort *Serial1 = new CPort();
 	
+	Serial1->ScanPorts();
+	
 	if (Serial1->GetPortInfoLength() < 1)
 	{
 		printf("ERROR: no ports in system\n");
@@ -134,24 +136,21 @@ int main()
 	}
 	
 	for(size_t i = 0; i < Serial1->GetPortInfoLength(); i++)
-	{
-		printf("[%d]: %s\n",i,Serial1->GetPortInfo(i).port_name);
-	}
+		printf("%s\n",Serial1->GetPortInfo(i).port_name);
+
+	char idport[8]; 
+	int	idbaud;
 	
-	int idport, idbaud;
-	printf("Port id ?(cyferka w nawiasie przy nazwie portu)");
-	scanf("%d",&idport);
+	scanf("%s",idport);
 
 	for(size_t i = 0; i < Serial1->GetBaudInfoLength(); i++)
-	{
-		printf("[%d]: %d\n",i,Serial1->GetBaudInfo(i));
-	}
-
+		printf("%d\n",Serial1->GetBaudInfo(i));
+	
 		
-	printf("baud id ?(cyferka w nawiasie przy predkosciach)");
+
 	scanf("%d",&idbaud);
-	Serial1->SetPortIndex(idport);
-	Serial1->SetBaudIndex(idbaud); 
+	Serial1->SetPort(idport);
+	Serial1->SetBaud(idbaud); 
 	
 
 	Serial1->Start();

@@ -73,8 +73,6 @@ CSerial::CSerial()
 	m_emptyCount = 0;
     m_Connected = false;
     m_NumberOfPorts = -1;
-    m_BaudIndex = 0;
-    m_PortIndex = 0;
     m_OpenPort = false;
     m_Working = false;
     m_ValidDevice = false;
@@ -83,7 +81,6 @@ CSerial::CSerial()
 	m_FirstTime = true;
 	m_ComPort = NULL;
 	vPorts.clear();
-	BuildPorts();
 
 }
 
@@ -99,7 +96,7 @@ CSerial::~CSerial()
         m_OpenPort = false;
     }
 	vPorts.clear();
-	m_PortIndex = 0;
+
 }
 
 void CSerial::PharseLine( char *_Data, int _DataLen )
@@ -233,7 +230,7 @@ void CSerial::ClearLineBuffer(void)
     m_OldLineLength = 0;
 }
 
-void CSerial::BuildPorts()
+void CSerial::ScanPorts()
 {
 
     vPorts.clear();
@@ -429,14 +426,6 @@ void CSerial::Start()
     OnStart();
     m_Stop = false;
 	
-	if(m_FirstTime && m_PortIndex == 0)
-	{
-		m_PortIndex = 0;
-		m_BaudIndex = 0;
-		m_NumberOfPorts = -1;
-		
-	}
-	
     StartThread();
 
 }
@@ -449,30 +438,22 @@ bool CSerial::GetWorkingFlag()
 void CSerial::SetWorkingFlag(bool work)
 {
     m_Working = work;
-
 }
-//void CSerial::SetNumberOfPorts(int val)
-//{
-//    m_NumberOfPorts = val;
-//}
 
-
-char *CSerial::GetPortName()
+const char *CSerial::GetPortName()
 {
-	if(vPorts.size() > 0)
-		return vPorts[m_PortIndex].port_name;
-	else
-		return NULL;
+	return m_Port;
 }
 
-bool CSerial::Connect(char *port_string, int baud_rate)
+bool CSerial::Connect(const char *port, int baud_rate)
 {
     if (m_Stop) return false;
 
     m_OpenPort = false;
-    m_BaudRate = baud_rate;
+    m_Baud = baud_rate;
+	strcpy(m_Port,port);
 
-	OpenPort(port_string,baud_rate);
+	OpenPort(port,baud_rate);
 
     if (m_ComPort != NULL)
     {
@@ -488,7 +469,6 @@ bool CSerial::Connect(char *port_string, int baud_rate)
 	
     return m_Connected;
 
-
 }
 
 bool CSerial::Reconnect()
@@ -497,115 +477,25 @@ bool CSerial::Reconnect()
     if (m_Stop)
         return false;
 
-
-   // if (m_NumberOfPorts == -1)
-   // {
-   //     BuildPorts();
-   //     return false;
-   // }
-
-
-   // if (m_OpenPort)
-   // {
-        //ClosePort(_SerialPort);
-//		if(m_ComPort != INVALID_HANDLE_VALUE)
-	//		CloseHandle(m_ComPort);
-	//	m_ComPort = NULL;
-    //    m_OpenPort = false;
-   // }
-
-    //m_ValidDevice = false;
-
-    //if (m_BaudIndex >=  BAUD_LENGTH && !m_FirstTime)
-    //{
-		
-      //  m_BaudIndex = 0;
-       // m_nErrors++;
-       // m_PortIndex++;
-
-        //if (m_PortIndex > m_NumberOfPorts)
-        //{
-          //  m_PortIndex = 0;			// zacznij od pierwszego portu w tablicy portów
-           // BuildPorts();
-        
-        //}
-        //else
-        //{
-            // -1 brak portów w systemie
-          //  return false;
-        //}
-    //}
-
 	bool con = false;
 	m_FirstTime = false;
-	if((int)vPorts.size() > m_PortIndex)
-	{
-		con = Connect(vPorts[m_PortIndex].port_string,BaudRates[m_BaudIndex]);	
-		OnReconnect();
-	}
-    
-	//m_BaudIndex++;
+	Sleep(1000);
+	fprintf(stderr,"reconnect\n");
+	con = Connect(m_Port,m_Baud);	
+	OnReconnect();
 	
+
     return con;
 }
 
-bool CSerial::SetPort(char *port)
+void CSerial::SetPort(char *port)
 {
-	if(vPorts.size() == 0)
-		return false;
-	
-	for(size_t i = 0;  i < vPorts.size();i++)
-	{
-		if(strcmp(vPorts[i].port_name,port) == 0)
-		{
-			m_PortIndex = i;
-			return true;
-		}
-	}
-	
-	return false;
+	strcpy(m_Port,port);
 }
 
-
-bool CSerial::SetBaud(int baud)
+void CSerial::SetBaud(int baud)
 {
-	for(size_t i = 0; i < BAUD_LENGTH;i++)
-	{ 
-		if(BaudRates[i] == baud)
-		{
-			m_BaudIndex = i;
-			return true;
-		}
-	}
-	
-	return false;
-}
-
-
-
-void CSerial::SetPortIndex(int id)
-{
-	m_PortIndex = id;
-	if(id < 0)
-		m_PortIndex = 0;
-}
-
-void CSerial::SetBaudIndex(int id)
-{
-	m_BaudIndex = id;
-	if(id < 0)
-		m_BaudIndex = 0;
-}
-
-
-int CSerial::GetPortIndex()
-{
-	return m_PortIndex;
-}
-
-int CSerial::GetBaudIndex()
-{
-	return m_BaudIndex - 1;
+	m_Baud = baud;
 }
 
 bool CSerial::GetIsConnected()
@@ -623,8 +513,6 @@ SSignal *CSerial::GetSignal(int idx)
 	return &vSignals[idx];
 }
 
-
-
 int CSerial::Read()
 {
     memset(m_SerialBuffer,0,BUFFER + 1);
@@ -639,7 +527,6 @@ int CSerial::Read()
 	{
 		//m_BufferLength = -1;
 		printf("no signal on port %s\n",GetPortName());
-		Beep(800,100);
 		m_emptyCount = 0;
 	}
 	
@@ -658,19 +545,9 @@ void CSerial::SetLength(int size)
     m_BufferLength = size;
 }
 
-//bool CSerial::GetOpenPort()
-//{
-//    return m_OpenPort;
-//}
-
-//int CSerial::GetPortNumber()
-//{
-//    return m_Port;
-//}
-
 int CSerial::GetBaudRate()
 {
-    return m_BaudRate;
+    return m_Baud;
 }
 
 int CSerial::GetnErrors()
@@ -687,6 +564,7 @@ unsigned char *CSerial::GetBuffer()
 {
     return m_SerialBuffer;
 }
+
 int CSerial::GetLength()
 {
     return m_BufferLength;
@@ -726,7 +604,7 @@ void CSerial::Disconnect()
 int ComPort;
 struct termios old_port_settings;
 
-int OpenPort(char port[16], int baudrate)
+int OpenPort(char *port, int baudrate)
 {
     int baudr;
     int error;
@@ -836,7 +714,7 @@ TIOCM_DSR DSR (data set ready)
 
 
 
-void CSerial::OpenPort(char port[16], int baudrate)
+void CSerial::OpenPort(const char *port, int baudrate)
 {
 	
 	char baudr[64];
@@ -870,9 +748,13 @@ void CSerial::OpenPort(char port[16], int baudrate)
 		return;
         break;
     }
-	
-    m_ComPort = CreateFileA(port, GENERIC_READ|GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+	//int len = strlen(port) + 1 + 7;
+	//char *port_string = (char*)malloc(len);
+	//memset(port_string,0,len);
 
+	//sprintf(port_string,"\\\\.\\%s",port);
+    m_ComPort = CreateFileA(port, GENERIC_READ|GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+	//free(port_string);
     if(m_ComPort == INVALID_HANDLE_VALUE)
     {	
 		m_ComPort = NULL;

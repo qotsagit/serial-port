@@ -63,10 +63,11 @@ class CSerial
 	unsigned char _LineBuffer[BUFFER_LENGTH];
 	int m_emptyCount;			// flaga jest decrementowana kiedy bufor odczytu z pliku jest rowny 0
 	int m_NumberOfPorts;		// iloœæ portów do skanowania
-	int m_BaudIndex;			// index baudrate w tablicy baud rate
-	int m_PortIndex;			// index portu w tablicy portów
+	//int m_BaudIndex;			// index baudrate w tablicy baud rate
+	//int m_PortIndex;			// index portu w tablicy portów
 	bool m_OpenPort;			// otwarty port pomyœlnie
-	int m_BaudRate;
+	int m_Baud;
+	char m_Port[PORT_NAME_LENGTH];
 	int m_BufferLength;
 	bool m_Stop;
 	bool m_Connected;
@@ -79,10 +80,10 @@ class CSerial
 #if defined(_WIN32) || defined(_WIN64)
 	HANDLE m_ThreadHANDLE;
 #endif
-	void BuildPorts();
+	
 	
 	void StartThread();
-	void OpenPort(char*, int);
+	void OpenPort(const char*, int);
 	int ReadPort(HANDLE port, unsigned char *, int);
 	void FoldLine( unsigned char *Buffer, int BufferLength );
 	void PharseLine( char *_Data, int _DataLen );
@@ -92,62 +93,56 @@ class CSerial
 	
 public:
 
-		CSerial();
-		virtual ~CSerial();
-		int GetBaudInfo(int id);
-		size_t GetBaudInfoLength();
-		size_t GetPortInfoLength();
-		SPorts GetPortInfo(int id);
-		void ShowError();
-		int GetDeviceType();
-		bool Connect(char *port_string, int baud_rate);
-		void Disconnect();
-		int GetLength();				// buffer length
-		bool GetStop();
-		int GetBaudRate();
-		unsigned char *GetBuffer();
-		bool GetIsConnected();
-		int GetnErrors();				//retrun number of connection try errors
-		void SetnErrors(int n);			// set number of connection tries
-		bool GetWorkingFlag();
-		void SetWorkingFlag(bool stop);
-		char *GetPortName();            // nazwa portu
+	CSerial();
+	virtual ~CSerial();
+	int GetBaudInfo(int id);
+	size_t GetBaudInfoLength();
+	size_t GetPortInfoLength();
+	SPorts GetPortInfo(int id);
+	void ShowError();
+	//int GetDeviceType();
+	bool Connect(const char *port, int baud);
+	void Disconnect();
+	int GetLength();				// buffer length
+	bool GetStop();
+	int GetBaudRate();
+	unsigned char *GetBuffer();
+	bool GetIsConnected();
+	int GetnErrors();				//retrun number of connection try errors
+	void SetnErrors(int n);			// set number of connection tries
+	bool GetWorkingFlag();
+	void SetWorkingFlag(bool stop);
+	const char *GetPortName();            // nazwa portu
+	void ScanPorts();
 #if defined(_LINUX32) || defined(_LINUX64)
-		bool Scan(char port_name[PORT_NAME_LENGTH]);
+	bool Scan(char port_name[PORT_NAME_LENGTH]);
 #endif
 #if defined(_WIN32) || defined(_WIN64)
-		HANDLE GetHandle();
+	HANDLE GetHandle();
 #endif
 
-		std::vector <SPorts>GetPorts();
-		void Stop();					// set stop flag
-		void Start();					// starts the connect thread
-        int Read();
-        void SetLength(int size);
-        bool Reconnect();
-        void SetNumberOfPorts(int val);
-		void SetPortIndex(int id);
-		void SetBaudIndex(int id);
-
-		bool SetPort(char *port);
-		bool SetBaud(int baud);
-
-		int GetPortIndex();
-		int GetBaudIndex();
-
-		size_t GetSignalCount();
-		SSignal *GetSignal(int idx);
+	std::vector <SPorts>GetPorts();
+	void Stop();					// set stop flag
+	void Start();					// starts the connect thread
+    int Read();
+    void SetLength(int size);
+    bool Reconnect();
+    //void SetNumberOfPorts(int val);
+	void SetPort(char *port);
+	void SetBaud(int baud);
+	size_t GetSignalCount();
+	SSignal *GetSignal(int idx);
 				
-		virtual void OnConnect();
-		virtual void OnDisconnect();
-		virtual void OnData(unsigned char *buffer, int length);
-		virtual void OnExit();			
-		virtual void OnLine(unsigned char *buffer);
-		virtual void OnStop();			// stop pressed or stopped
-		virtual void OnStart();			// start
-		virtual void OnAfterMainLoop();
-		virtual void OnBeforeMainLoop();
-		virtual void OnReconnect();
-		virtual void OnNewSignal(); // nowy znaleziony typ danych w sygnale
+	virtual void OnConnect();
+	virtual void OnDisconnect();
+	virtual void OnData(unsigned char *buffer, int length);
+	virtual void OnExit();			
+	virtual void OnLine(unsigned char *buffer);
+	virtual void OnStop();			// stop pressed or stopped
+	virtual void OnStart();			// start
+	virtual void OnAfterMainLoop();
+	virtual void OnBeforeMainLoop();
+	virtual void OnReconnect();
+	virtual void OnNewSignal(); // nowy znaleziony typ danych w sygnale
 };
 
