@@ -107,7 +107,7 @@ public:
 	bool GetStop();
 	int GetBaudRate();
 	unsigned char *GetBuffer();
-	bool GetIsConnected();
+	bool IsConnected();
 	int GetnErrors();				//retrun number of connection try errors
 	void SetnErrors(int n);			// set number of connection tries
 	bool GetWorkingFlag();

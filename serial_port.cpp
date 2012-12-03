@@ -26,7 +26,7 @@ void *_LINUXThread(void *Param)
             break;
 
 
-        if (Serial->GetIsConnected())
+        if (Serial->IsConnected())
         {
             RetCode = Serial->Read();
             Serial->SetLength(RetCode);
@@ -498,7 +498,7 @@ void CSerial::SetBaud(int baud)
 	m_Baud = baud;
 }
 
-bool CSerial::GetIsConnected()
+bool CSerial::IsConnected()
 {
     return m_Connected;
 }
