@@ -526,7 +526,8 @@ int CSerial::Read()
 	if(m_emptyCount >= 5)
 	{
 		//m_BufferLength = -1;
-		printf("no signal on port %s\n",GetPortName());
+		//printf("no signal on port %s\n",GetPortName());
+		OnNoSignal();
 		m_emptyCount = 0;
 	}
 	
@@ -936,5 +937,8 @@ void CSerial::OnReconnect()
 {
 }
 void CSerial::OnNewSignal()
+{
+}
+void CSerial::OnNoSignal()
 {
 }

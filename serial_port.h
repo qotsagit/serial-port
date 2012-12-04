@@ -144,5 +144,6 @@ public:
 	virtual void OnBeforeMainLoop();
 	virtual void OnReconnect();
 	virtual void OnNewSignal(); // nowy znaleziony typ danych w sygnale
+	virtual void OnNoSignal();
 };
 
