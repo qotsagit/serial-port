@@ -48,7 +48,7 @@ void *_LINUXThread(void *Param)
 
 
 #ifdef _WIN32
-     //   Sleep(500);
+     //   Sleep(50);
 #endif
 #if defined(_LINUX32) || defined(_LINUX64)
         sleep(1);
@@ -748,13 +748,13 @@ void CSerial::OpenPort(const char *port, int baudrate)
 		return;
         break;
     }
-	//int len = strlen(port) + 1 + 7;
-	//char *port_string = (char*)malloc(len);
-	//memset(port_string,0,len);
+	int len = strlen(port) + 1 + 7;
+	char *port_string = (char*)malloc(len);
+	memset(port_string,0,len);
 
-	//sprintf(port_string,"\\\\.\\%s",port);
-    m_ComPort = CreateFileA(port, GENERIC_READ|GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
-	//free(port_string);
+	sprintf(port_string,"\\\\.\\%s",port);
+    m_ComPort = CreateFileA(port_string, GENERIC_READ|GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+	free(port_string);
     if(m_ComPort == INVALID_HANDLE_VALUE)
     {	
 		m_ComPort = NULL;
