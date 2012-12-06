@@ -26,7 +26,7 @@ void *_LINUXThread(void *Param)
             break;
 
 
-        if (Serial->GetIsConnected())
+        if (Serial->IsConnected())
         {
             RetCode = Serial->Read();
             Serial->SetLength(RetCode);
@@ -48,7 +48,7 @@ void *_LINUXThread(void *Param)
 
 
 #ifdef _WIN32
-     //   Sleep(500);
+     //   Sleep(50);
 #endif
 #if defined(_LINUX32) || defined(_LINUX64)
         sleep(1);
@@ -501,7 +501,7 @@ void CSerial::SetBaud(int baud)
 	m_Baud = baud;
 }
 
-bool CSerial::GetIsConnected()
+bool CSerial::IsConnected()
 {
     return m_Connected;
 }
@@ -529,7 +529,8 @@ int CSerial::Read()
 	if(m_emptyCount >= 5)
 	{
 		//m_BufferLength = -1;
-		printf("no signal on port %s\n",GetPortName());
+		//printf("no signal on port %s\n",GetPortName());
+		OnNoSignal();
 		m_emptyCount = 0;
 	}
 	
@@ -758,8 +759,7 @@ void CSerial::OpenPort(const char *port, int baudrate)
 	sprintf(port_string,"\\\\.\\%s",port);
     m_ComPort = CreateFileA(port_string, GENERIC_READ|GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
 	free(port_string);
-    
-	if(m_ComPort == INVALID_HANDLE_VALUE)
+    if(m_ComPort == INVALID_HANDLE_VALUE)
     {	
 		m_ComPort = NULL;
         //printf("unable to open comport\n");
@@ -940,5 +940,8 @@ void CSerial::OnReconnect()
 {
 }
 void CSerial::OnNewSignal()
+{
+}
+void CSerial::OnNoSignal()
 {
 }
