@@ -21,7 +21,7 @@
 #define EOL_LENGTH			1
 
 #define NUMBER_OF_PORTS		256
-#define BAUD_LENGTH			5
+#define BAUD_LENGTH			7
 
 #define PORT_NAME_LENGTH    16
 #define PORT_STRING_LENGTH  16

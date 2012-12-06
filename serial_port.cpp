@@ -6,7 +6,7 @@
 #include <errno.h>
 #endif
 
-int BaudRates[BAUD_LENGTH] = {115200,57600,38400,9600,4800};
+int BaudRates[BAUD_LENGTH] = {230400,115200,57600,38400,19200, 9600,4800};
 #ifdef _WIN32
 DWORD WINAPI CSerial::_W32Thread(void *Param)
 #endif
@@ -160,13 +160,16 @@ void CSerial::NMEASignal(unsigned char *line)
 {
 	m_LinesCount++;
 	
-	if(!CheckChecksum((const char*)line))
-	{
-		m_BadCrc++;
-		return;
-	}
+	//if(!CheckChecksum((const char*)line))
+	//{
+		//m_BadCrc++;
+		//return;
+	//}
 	
 	unsigned char *ptr = (unsigned char*)memchr(line,',',strlen((char*)line));
+	if(ptr == NULL)
+		return;
+	
 	unsigned char *buf = (unsigned char*)malloc( ptr - line + 1 );
 	memset(buf,0,ptr - line + 1);
 	memcpy(buf,line, ptr - line);
@@ -480,7 +483,7 @@ bool CSerial::Reconnect()
 	bool con = false;
 	m_FirstTime = false;
 	Sleep(1000);
-	fprintf(stderr,"reconnect\n");
+	
 	con = Connect(m_Port,m_Baud);	
 	OnReconnect();
 	
@@ -748,14 +751,15 @@ void CSerial::OpenPort(const char *port, int baudrate)
 		return;
         break;
     }
-	//int len = strlen(port) + 1 + 7;
-	//char *port_string = (char*)malloc(len);
-	//memset(port_string,0,len);
+	int len = strlen(port) + 1 + 7;
+	char *port_string = (char*)malloc(len);
+	memset(port_string,0,len);
 
-	//sprintf(port_string,"\\\\.\\%s",port);
-    m_ComPort = CreateFileA(port, GENERIC_READ|GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
-	//free(port_string);
-    if(m_ComPort == INVALID_HANDLE_VALUE)
+	sprintf(port_string,"\\\\.\\%s",port);
+    m_ComPort = CreateFileA(port_string, GENERIC_READ|GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+	free(port_string);
+    
+	if(m_ComPort == INVALID_HANDLE_VALUE)
     {	
 		m_ComPort = NULL;
         //printf("unable to open comport\n");

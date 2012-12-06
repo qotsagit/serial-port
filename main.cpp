@@ -41,64 +41,17 @@ bool CPort::CheckChecksum(const char *nmea_line) {
  
 }
 
+void CPort::OnNewSignal()
+{
+	size_t len = GetSignalCount();	
+	for( int i = 0; i < len;i++)
+		fprintf(stderr,"%d : \t%s -> %d\n",i,GetSignal(i));
+	
+}
+
 void CPort::OnLine(unsigned char *line)
 {
-	printf("LINE:%d%s\n",strlen((char*)line),line);
-	//return;
-	//lines++;
-	//if(!CheckChecksum((char*)line))
-	//{
-	//	printf("Bad crc: %d\n",bad_crc);
-//		printf("%s",line);
-		//Sleep(5);
-		//bad_crc++;
-		//return;
-	//}
-	
-	//unsigned char *ptr = (unsigned char*)memchr(line,',',strlen((char*)line));
-	//unsigned char *buf = (unsigned char*)malloc( ptr - line + 1 );
-	//memset(buf,0,ptr - line + 1);
-	//memcpy(buf,line, ptr - line);
-	//bool add = true;
-
-	//if(vList.size() != 0)
-	//{
-		//for( int i = 0; i < vList.size();i++)
-		//{	
-			//if( memcmp(vList[i].name,buf,ptr - line) == 0)
-			//{
-				//add = false;
-				//vList[i].count++;
-				//break;
-			//}
-		//}
-		
-	//}
-
-	//if(add)
-	//{	
-		
-		//SLine Line;
-		//Line.name = buf;
-		//Line.count = 1;
-
-		//vList.push_back(Line);
-		
-	//}else{
-	
-		//free(buf);
-	//}
-
-	//system("cls");
-	//for( int i = 0; i < vList.size();i++)
-		//printf("%d : \t%s -> %d\n",i,vList[i].name,vList[i].count);
-	
-	//printf("Bad crc: %d\n",bad_crc);
-	//printf("NMEA Lines: %d\n",lines);
-	//printf("x potem ENTER - koniec programu. log zapisany w pliku nmealog.txt ");
-	//line_len += strlen((char*)line);
-	//printf("Data: %d Line %d",data_len,line_len);
-
+	printf("%s\n",line);
 }
 
 void CPort::OnStop()
@@ -111,15 +64,6 @@ void CPort::OnStop()
 	//fprintf(f,"Bad crc: %d\n",bad_crc);
 	//fprintf(f,"NMEA Lines: %d\n",lines);
 	//fclose(f);
-}
-
-void CPort::OnNewSignal()
-{
-	system("cls");
-	
-	//for( int i = 0; i < vList.size();i++)
-		//printf("%d : \t%s -> %d\n",i,vList[i].name,vList[i].count);
-	
 }
 
 int main()
