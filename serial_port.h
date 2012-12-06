@@ -39,6 +39,7 @@ typedef struct
 typedef struct 
 {
 	unsigned char *name;
+	unsigned char *nmea;
 	int count;
 
 }SSignal;
@@ -54,7 +55,7 @@ class CSerial
 	std::vector <SPorts> vPorts;
 	std::vector <SPorts>::iterator itvPorts;
 	std::vector <SSignal> vSignals;				//sygnaly NMEA
-	
+		
 	int m_BadCrc,m_LinesCount;
 	int m_EOLen;
 	char m_LineBuffer[BUFFER_LENGTH];

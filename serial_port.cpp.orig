@@ -97,11 +97,6 @@ CSerial::~CSerial()
     }
 	vPorts.clear();
 
-	for(size_t i = 0; i < vSignals.size(); i++)
-	{
-		free(vSignals[i].nmea);
-	}
-
 }
 
 void CSerial::PharseLine( char *_Data, int _DataLen )
@@ -199,8 +194,6 @@ void CSerial::NMEASignal(unsigned char *line)
 		SSignal Signal;
 		Signal.name = buf;
 		Signal.count = 1;
-		Signal.nmea = (unsigned char*)malloc(strlen((char*)line) + 1);
-		strcpy((char*)Signal.nmea,(char*)line);
 		vSignals.push_back(Signal);
 		OnNewSignal();
 		
@@ -766,7 +759,12 @@ void CSerial::OpenPort(const char *port, int baudrate)
 	sprintf(port_string,"\\\\.\\%s",port);
     m_ComPort = CreateFileA(port_string, GENERIC_READ|GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
 	free(port_string);
+<<<<<<< HEAD
+    
+	if(m_ComPort == INVALID_HANDLE_VALUE)
+=======
     if(m_ComPort == INVALID_HANDLE_VALUE)
+>>>>>>> ab327e22ecc6f2bceb489e9370b3232cfd7cb3c7
     {	
 		m_ComPort = NULL;
         //printf("unable to open comport\n");
