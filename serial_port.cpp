@@ -6,7 +6,7 @@
 #include <errno.h>
 #endif
 
-int BaudRates[BAUD_LENGTH] = {230400,115200,57600,38400,19200, 9600,4800};
+int BaudRates[BAUD_LENGTH] = {4800,9600,19200,38400,57600,115200,230400 };
 #ifdef _WIN32
 DWORD WINAPI CSerial::_W32Thread(void *Param)
 #endif
@@ -80,6 +80,7 @@ CSerial::CSerial()
     m_Stop = false;
 	m_FirstTime = true;
 	m_ComPort = NULL;
+	m_Baud = BaudRates[0];
 	vPorts.clear();
 
 }
