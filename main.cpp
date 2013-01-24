@@ -45,13 +45,13 @@ void CPort::OnNewSignal()
 {
 	size_t len = GetSignalCount();	
 	for( int i = 0; i < len;i++)
-		fprintf(stderr,"%d : \t%s -> %d\n",i,GetSignal(i));
+		fprintf(stderr,"%d : %s -> %d\n",i,GetSignal(i)->name,len);
 	
 }
 
 void CPort::OnLine(unsigned char *line)
 {
-	printf("%s\n",line);
+	//printf("%s\n",line);
 }
 
 void CPort::OnStop()

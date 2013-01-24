@@ -81,6 +81,7 @@ CSerial::CSerial()
 	m_FirstTime = true;
 	m_ComPort = NULL;
 	m_Baud = BaudRates[0];
+	m_CheckCRC = false;
 	vPorts.clear();
 
 }
@@ -98,11 +99,42 @@ CSerial::~CSerial()
     }
 	vPorts.clear();
 
+	ClearSignals();
+	
+}
+size_t CSerial::GetLinesCount()
+{
+	return m_LinesCount;
+}
+
+size_t CSerial::GetSignalQuality()
+{
+	if(m_BadCrc == 0)
+		return 100;
+
+	float a = ((float)m_BadCrc / (float)m_LinesCount) * 100;
+	return (size_t)100 - a;
+}
+
+
+void CSerial::SetCheckCRC(bool val)
+{
+	m_CheckCRC = val;
+}
+
+size_t CSerial::GetBadCRC()
+{
+	return m_BadCrc;
+}
+
+void CSerial::ClearSignals()
+{
 	for(size_t i = 0; i < vSignals.size(); i++)
 	{
+		free(vSignals[i].name);
 		free(vSignals[i].nmea);
 	}
-
+	vSignals.clear();
 }
 
 void CSerial::PharseLine( char *_Data, int _DataLen )
@@ -166,26 +198,31 @@ void CSerial::NMEASignal(unsigned char *line)
 {
 	m_LinesCount++;
 	
-	//if(!CheckChecksum((const char*)line))
-	//{
-		//m_BadCrc++;
-		//return;
-	//}
+	if(!CheckChecksum((const char*)line))
+	{
+		m_BadCrc++;
+		if(m_CheckCRC)
+			return;
+	}
 	
-	unsigned char *ptr = (unsigned char*)memchr(line,',',strlen((char*)line));
-	if(ptr == NULL)
+	unsigned char *from = (unsigned char*)memchr(line,'$',strlen((char*)line));
+	if(from == NULL)
 		return;
 	
-	unsigned char *buf = (unsigned char*)malloc( ptr - line + 1 );
-	memset(buf,0,ptr - line + 1);
-	memcpy(buf,line, ptr - line);
+	unsigned char *to = (unsigned char*)memchr(line,',',strlen((char*)line));
+	if(to == NULL)
+		return;
+	
+	unsigned char *buf = (unsigned char*)malloc( to - from + 1 );
+	memset(buf,0,to - from + 1);
+	memcpy(buf,from, to - from);
 	bool add = true;
 
 	if(vSignals.size() != 0)
 	{
 		for( int i = 0; i < vSignals.size();i++)
 		{	
-			if( memcmp(vSignals[i].name,buf,ptr - line) == 0)
+			if( memcmp(vSignals[i].name,buf,to - from) == 0)
 			{
 				add = false;
 				vSignals[i].count++;
@@ -200,8 +237,8 @@ void CSerial::NMEASignal(unsigned char *line)
 		SSignal Signal;
 		Signal.name = buf;
 		Signal.count = 1;
-		Signal.nmea = (unsigned char*)malloc(strlen((char*)line) + 1);
-		strcpy((char*)Signal.nmea,(char*)line);
+		Signal.nmea = (unsigned char*)malloc(strlen((char*)from) + 1);
+		strcpy((char*)Signal.nmea,(char*)from);
 		vSignals.push_back(Signal);
 		OnNewSignal();
 		
@@ -395,8 +432,6 @@ int CSerial::GetBaudInfo(int id)
 	return 	BaudRates[id];
 }
 
-
-
 bool CSerial::GetStop()
 {
     return m_Stop;
@@ -421,6 +456,9 @@ void CSerial::Stop()
 		m_ComPort = NULL;
         m_OpenPort = false;
     }
+
+	ClearSignals();
+
     m_Connected = false;
     m_Working = false;
     m_ValidDevice = false;
@@ -460,7 +498,9 @@ bool CSerial::Connect(const char *port, int baud_rate)
 {
     if (m_Stop) return false;
 
-    m_OpenPort = false;
+    m_BadCrc = 0;
+	m_LinesCount = 0;
+	m_OpenPort = false;
     m_Baud = baud_rate;
 	strcpy(m_Port,port);
 

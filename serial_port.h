@@ -56,6 +56,7 @@ class CSerial
 	std::vector <SPorts>::iterator itvPorts;
 	std::vector <SSignal> vSignals;				//sygnaly NMEA
 		
+	bool m_CheckCRC;
 	int m_BadCrc,m_LinesCount;
 	int m_EOLen;
 	char m_LineBuffer[BUFFER_LENGTH];
@@ -91,6 +92,7 @@ class CSerial
 	void NMEASignal(unsigned char *Line);
 	void ClearLineBuffer(void);
 	bool CheckChecksum(const char *nmea_line);
+	void ClearSignals();
 	
 public:
 
@@ -133,6 +135,10 @@ public:
 	void SetBaud(int baud);
 	size_t GetSignalCount();
 	SSignal *GetSignal(int idx);
+	void SetCheckCRC(bool val);
+	size_t GetBadCRC();
+	size_t GetLinesCount();
+	size_t GetSignalQuality();
 				
 	virtual void OnConnect();
 	virtual void OnDisconnect();
