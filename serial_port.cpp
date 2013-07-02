@@ -28,17 +28,16 @@ void *_LINUXThread(void *Param)
 
         if (Serial->IsConnected())
         {
-            RetCode = Serial->Read();
-            Serial->SetLength(RetCode);
+			if(!Serial->GetWriter())   // reader mode
+			{
+				RetCode = Serial->Read();
+				Serial->SetLength(RetCode);
 
-            if (RetCode > -1) // all ok
-            {
-                Serial->SetnErrors(0);
-            
-			}else{
-                
-				Serial->Reconnect();
-            }
+				if (RetCode > -1) // all ok
+					Serial->SetnErrors(0);
+            	else
+            		Serial->Reconnect();	
+			}
 
         }else{
             
@@ -48,7 +47,7 @@ void *_LINUXThread(void *Param)
 
 
 #ifdef _WIN32
-     //   Sleep(50);
+        Sleep(500);
 #endif
 #if defined(_LINUX32) || defined(_LINUX64)
         sleep(1);
@@ -82,6 +81,8 @@ CSerial::CSerial()
 	m_ComPort = NULL;
 	m_Baud = BaudRates[0];
 	m_CheckCRC = false;
+	m_Writer = false;
+	m_LinesWritten = 0;
 	vPorts.clear();
 
 }
@@ -102,6 +103,17 @@ CSerial::~CSerial()
 	ClearSignals();
 	
 }
+
+void CSerial::SetWriter(bool val)
+{
+	m_Writer = val;
+}
+
+bool CSerial::GetWriter()
+{
+	return m_Writer;
+}
+
 size_t CSerial::GetLinesCount()
 {
 	return m_LinesCount;
@@ -190,6 +202,7 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
         memcpy(m_OldLineBuffer, m_OldLineBuffer, m_OldLineLength);
         memcpy((m_OldLineBuffer + m_OldLineLength), (_Data + Start ), Len);
         m_OldLineLength += Len;
+		fprintf(stdout,"Length: %d\n",m_OldLineLength);
     };
 
 };
@@ -205,14 +218,23 @@ void CSerial::NMEASignal(unsigned char *line)
 			return;
 	}
 	
-	unsigned char *from = (unsigned char*)memchr(line,'$',strlen((char*)line));
+	unsigned char *from = NULL;
+	unsigned char *from1 = (unsigned char*)memchr(line,'!',strlen((char*)line));
+	if(from1 != NULL)
+		from = from1;
+
+	unsigned char *from2 = (unsigned char*)memchr(line,'$',strlen((char*)line));
+	if(from2 != NULL)
+		from = from2;
+
 	if(from == NULL)
 		return;
-	
-	unsigned char *to = (unsigned char*)memchr(line,',',strlen((char*)line));
+
+	unsigned char *to = (unsigned char*)memchr(from,',',strlen((char*)from));
 	if(to == NULL)
 		return;
 	
+	from = from + (3 * sizeof(char));
 	unsigned char *buf = (unsigned char*)malloc( to - from + 1 );
 	memset(buf,0,to - from + 1);
 	memcpy(buf,from, to - from);
@@ -296,13 +318,13 @@ void CSerial::ScanPorts()
         //Try to open the port
         bool bSuccess = false;
 		fwprintf(stderr,L"opening port %s\n",port_name);
-        HANDLE hPort = CreateFile(port_name, GENERIC_READ , 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
+        HANDLE hPort = CreateFile(port_name, GENERIC_READ , NULL, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
         if (hPort == INVALID_HANDLE_VALUE)
         {
             DWORD dwError = GetLastError();
             //Check to see if the error was because some other app had the port open or a general failure
-            if (dwError == ERROR_ACCESS_DENIED || dwError == ERROR_GEN_FAILURE || dwError == ERROR_SHARING_VIOLATION || dwError == ERROR_SEM_TIMEOUT)
-                bSuccess = true;
+            //if (dwError == ERROR_ACCESS_DENIED || dwError == ERROR_GEN_FAILURE || dwError == ERROR_SHARING_VIOLATION || dwError == ERROR_SEM_TIMEOUT)
+              //  bSuccess = true;
         }
         else
         {
@@ -439,24 +461,24 @@ bool CSerial::GetStop()
 
 void CSerial::Stop()
 {
-
-    m_Stop = true;
+	 m_Stop = true;
+	
+	 if (m_OpenPort) // wa¿ne w tym miejscu po fladze stop
+    {
+        CloseHandle(m_ComPort);
+		m_ComPort = NULL;
+        m_OpenPort = false;
+    }
+	   
 #if defined(_WIN32) || defined(_WIN64)
     WaitForSingleObject(m_ThreadHANDLE,INFINITE);
 #endif
 #if defined(_LINUX32) || defined(_LINUX64)
     sleep(1);
 #endif
-
-    OnStop();
-
-    if (m_OpenPort) // wa¿ne w tym miejscu po fladze stop
-    {
-        CloseHandle(m_ComPort);
-		m_ComPort = NULL;
-        m_OpenPort = false;
-    }
-
+	    	
+	OnStop();
+	   
 	ClearSignals();
 
     m_Connected = false;
@@ -475,7 +497,7 @@ void CSerial::Start()
     OnStart();
     m_Stop = false;
 	
-    StartThread();
+	StartThread();
 
 }
 
@@ -591,6 +613,16 @@ int CSerial::Read()
 	return m_BufferLength;
 }
 
+int CSerial::Write(unsigned char *buffer, int length)
+{
+	int size = WritePort(m_ComPort,buffer,length);
+	m_LinesWritten++;
+	return size;
+}
+int CSerial::GetLinesWriten()
+{
+	return m_LinesWritten;
+}
 
 void CSerial::SetLength(int size)
 {
@@ -805,16 +837,17 @@ void CSerial::OpenPort(const char *port, int baudrate)
 	memset(port_string,0,len);
 
 	sprintf(port_string,"\\\\.\\%s",port);
-    m_ComPort = CreateFileA(port_string, GENERIC_READ|GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+    //m_ComPort = CreateFileA(port_string, GENERIC_READ|GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
+	m_ComPort = CreateFileA(port_string, GENERIC_READ|GENERIC_WRITE, 0, 0, OPEN_EXISTING, 0, 0);
 	free(port_string);
-    if(m_ComPort == INVALID_HANDLE_VALUE)
+    
+	if(m_ComPort == INVALID_HANDLE_VALUE)
     {	
 		m_ComPort = NULL;
         //printf("unable to open comport\n");
 		return;
     }
-
-	
+		
     DCB port_settings;
     memset(&port_settings, 0, sizeof(port_settings));  /* clear the new struct  */
     port_settings.DCBlength = sizeof(port_settings);
@@ -857,104 +890,38 @@ void CSerial::OpenPort(const char *port, int baudrate)
 
 int CSerial::ReadPort(HANDLE port,unsigned char *buf, int size)
 {
+	int nBytesRead = 0;
+    if(size > 4096)  
+		size = 4096;
+	    
+	BOOL bResult = ReadFile(port, buf, size, (LPDWORD)&nBytesRead, NULL);
+	fprintf(stdout,"Readed %d\n",nBytesRead);
 	
-    int nBytesRead = 0;
-    DWORD dwCommModemStatus,deRes;
-    OVERLAPPED o;
-    if(size>4096)  size = 4096;
-
-    /* added the void pointer cast, otherwise gcc will complain about */
-    /* "warning: dereferencing type-punned pointer will break strict aliasing rules" */
-
-    SetCommMask (port, EV_RXCHAR|EV_CTS|EV_DSR|EV_RING|EV_ERR|EV_BREAK|EV_RLSD);
-	o.hEvent = CreateEvent(
-                   NULL,   // default security attributes
-                   TRUE,   // manual-reset event
-                   FALSE,  // not signaled
-                   NULL    // no name
-               );
-
-	if(o.hEvent == NULL)
-		return 0;
-    
-	// Initialize the rest of the OVERLAPPED structure to zero.
-    o.Internal = 0;
-    o.InternalHigh = 0;
-    o.Offset = 0;
-    o.OffsetHigh = 0;
-	o.Pointer = 0;
+	if(bResult)
+		return nBytesRead;
+	else
+		nBytesRead = 0;
 		
-    bool waitRes = WaitCommEvent (port, &dwCommModemStatus, &o);
-	if(!waitRes)
-	{
-		if(GetLastError() != ERROR_IO_PENDING)
-			return -2;
-	}
-
-	deRes = WaitForSingleObject(o.hEvent,1000);
-    
-	switch(deRes)
-    {
-    
-		case WAIT_OBJECT_0:
-		{
-			BOOL bResult = ReadFile(port, buf, size, (LPDWORD)&nBytesRead, &o);
-			if(bResult)
-			{
-				CloseHandle(o.hEvent);
-				return nBytesRead;
-			}else{
-				DWORD lError = GetLastError();
-				
-				if (lError != ERROR_IO_PENDING)
-					nBytesRead = 0;
-
-				GetOverlappedResult(port,&o,(LPDWORD)&nBytesRead,FALSE);
-			}
-		
-			break;
-		}
-    
-		case WAIT_TIMEOUT:
-			nBytesRead = 0;
-			CancelIo(port);
-			break;
-		
-		case WAIT_FAILED:
-			nBytesRead = -1;
-			break;
-	}
-	
-	
-	
-    return nBytesRead;
+	return nBytesRead;
 }
 
+int CSerial::WritePort(HANDLE port,unsigned char *buf, int size)
+{
+    int n = -1;
+    if(port == INVALID_HANDLE_VALUE)
+		return -1;
+
+	BOOL bResult = WriteFile(port, buf, size, (LPDWORD)((void *)&n), NULL);
+	if(bResult)
+		return n;
+	else			
+		n = 0;
+	
+	return n;
+}
 
 #endif
 
-void CSerial::ShowError()
-{
-	LPVOID lpMsgBuf;
-	FormatMessage( 
-		FORMAT_MESSAGE_ALLOCATE_BUFFER | 
-		FORMAT_MESSAGE_FROM_SYSTEM | 
-		FORMAT_MESSAGE_IGNORE_INSERTS,
-		NULL,
-		GetLastError(),
-		0, // Default language
-		(LPTSTR) &lpMsgBuf,
-		0,
-		NULL 
-	);
-	// Process any inserts in lpMsgBuf.
-	// ...
-	// Display the string.
-	//printf("%Ls",lpMsgBuf);
-//	MessageBox( NULL, (LPCTSTR)lpMsgBuf, L"Error", MB_OK | MB_ICONINFORMATION );
-	// Free the buffer.
-	LocalFree( lpMsgBuf );
-}
 
 // virtual methods
 void CSerial::OnConnect()

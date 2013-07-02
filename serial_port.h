@@ -57,7 +57,7 @@ class CSerial
 	std::vector <SSignal> vSignals;				//sygnaly NMEA
 		
 	bool m_CheckCRC;
-	int m_BadCrc,m_LinesCount;
+	int m_BadCrc,m_LinesCount,m_LinesWritten;
 	int m_EOLen;
 	char m_LineBuffer[BUFFER_LENGTH];
 	char *m_OldLineBuffer;
@@ -77,6 +77,8 @@ class CSerial
 	bool m_ValidDevice;
 	bool m_Working;
 	bool m_FirstTime;
+	bool m_Writer;
+
 	DWORD threadID;
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -87,6 +89,7 @@ class CSerial
 	void StartThread();
 	void OpenPort(const char*, int);
 	int ReadPort(HANDLE port, unsigned char *, int);
+	int WritePort(HANDLE port,unsigned char *buf, int size);
 	void FoldLine( unsigned char *Buffer, int BufferLength );
 	void PharseLine( char *_Data, int _DataLen );
 	void NMEASignal(unsigned char *Line);
@@ -128,6 +131,7 @@ public:
 	void Stop();					// set stop flag
 	void Start();					// starts the connect thread
     int Read();
+	int Write(unsigned char *buffer, int length);
     void SetLength(int size);
     bool Reconnect();
     //void SetNumberOfPorts(int val);
@@ -139,6 +143,9 @@ public:
 	size_t GetBadCRC();
 	size_t GetLinesCount();
 	size_t GetSignalQuality();
+	void SetWriter(bool val);
+	bool GetWriter();
+	int GetLinesWriten();
 				
 	virtual void OnConnect();
 	virtual void OnDisconnect();
