@@ -4,7 +4,7 @@
 #include <string.h>
 
 unsigned char _LineBuffer[BUFFER_LENGTH];
-std::vector<char*> vLines;
+//std::vector<char*> vLines;
 
 CPort::CPort():CSerial()
 {
@@ -68,7 +68,8 @@ void CPort::OnStop()
 
 int main()
 {
-    CPort *Serial1 = new CPort();
+    
+	CPort *Serial1 = new CPort();
 	
 	Serial1->ScanPorts();
 	
@@ -114,7 +115,9 @@ int main()
 
 	Serial1->Stop();
     
+
 	delete Serial1;
+	
 	system("pause");
 	_CrtDumpMemoryLeaks();
 }
