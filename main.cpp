@@ -94,8 +94,8 @@ int main()
 		
 
 	scanf("%d",&idbaud);
-	Serial1->SetPort(idport);
-	Serial1->SetBaud(idbaud); 
+	Serial1->SetPortName(idport);
+	Serial1->SetBaudRate(idbaud); 
 	
 
 	Serial1->Start();

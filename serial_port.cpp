@@ -84,9 +84,8 @@ CSerial::CSerial()
     m_Baud = BaudRates[0];
     m_CheckCRC = false;
     m_ValidNMEA = false;
-    vPorts.clear();
-
-
+	vPorts.clear();
+	
 }
 
 CSerial::~CSerial()
@@ -171,12 +170,8 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
     int Len;
     char *DataPtr = (char*)_Data;
     if(m_OldLineLength >= BUFFER_LENGTH)
-    {
-        fprintf(stderr,"ERRPRO line lenght: %d",m_OldLineLength);
-	fprintf(stderr,"ERRPRO line lenght: %d",m_OldLineLength);
-        ClearLineBuffer();
-    }
-
+		ClearLineBuffer();
+    
     while( i < _DataLen )
     {
 
@@ -220,7 +215,6 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
 	memcpy(m_OldLineBuffer, m_OldLineBuffer, m_OldLineLength);
 	memcpy((m_OldLineBuffer + m_OldLineLength), (_Data + Start ), Len);
 	m_OldLineLength += Len;
-	OnInvalidNMEA();
     }
 
 }
@@ -575,8 +569,8 @@ bool CSerial::Connect(const char *port, int baud_rate)
     m_Baud = baud_rate;
     strcpy(m_Port,port);
 
-    int a = OpenPort(port,baud_rate);
-    //fprintf(stderr,"Open %s %d %d\n",port,baud_rate, a);
+    OpenPort(port,baud_rate);
+    
 #if defined(_WIN32) || defined(_WIN64)
     if (m_ComPort != NULL)
     {
@@ -1044,9 +1038,6 @@ void CSerial::OnNoSignal()
 {
 }
 void CSerial::OnValidNMEA()
-{
-}
-void CSerial::OnInvalidNMEA()
 {
 }
 

@@ -87,15 +87,8 @@ class CSerial
 	bool m_ValidNMEA;
 	bool m_Writer;
 
-
-
-#if defined(_WIN32) || defined(_WIN64)
-	HANDLE m_ThreadHANDLE;
-	DWORD threadID;
-#endif
-
 	void StartThread();
-	int OpenPort(const char*, int);
+	void OpenPort(const char*, int);
 #if defined(_WIN32) || defined(_WIN64)
 	int ReadPort(HANDLE port, unsigned char *, int);
 	int WritePort(HANDLE port,unsigned char *buf, int size);
@@ -177,7 +170,7 @@ public:
 	virtual void OnNewSignal(); // nowy znaleziony typ danych w sygnale
 	virtual void OnNoSignal();
 	virtual void OnValidNMEA();
-	virtual void OnInvalidNMEA();
+	
 };
 
 #endif
