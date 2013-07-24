@@ -19,7 +19,6 @@
 #include "vector"
 
 
-#define BUFFER			4096
 #define EOL_LENGTH		1
 
 #define NUMBER_OF_PORTS		256
@@ -28,7 +27,7 @@
 #define PORT_NAME_LENGTH    16
 #define PORT_STRING_LENGTH  16
 
-
+#define BUFFER	4096
 #define BUFFER_LENGTH 1024
 
 typedef struct
@@ -48,7 +47,7 @@ typedef struct
 
 class CSerial
 {
-	unsigned char m_SerialBuffer[BUFFER + 1];
+	unsigned char m_SerialBuffer[BUFFER];
 #if defined(_WIN32) || defined(_WIN64)
 	static DWORD WINAPI _W32Thread(void *Param);
 	HANDLE m_ComPort;
@@ -58,13 +57,14 @@ class CSerial
 
 #if defined(_LINUX32) || defined(_LINUX64)
 	int m_ComPort;
+	struct termios m_OldPortSettings;
 #endif
 	std::vector <SPorts> vPorts;
 	std::vector <SPorts>::iterator itvPorts;
 	std::vector <SSignal> vSignals;				//sygnaly NMEA
 		
 	bool m_CheckCRC;
-	int m_BadCrc,m_LinesCount;
+	int m_BadCrc,m_LinesCount,m_LinesWritten;
 	int m_EOLen;
 	char m_LineBuffer[BUFFER_LENGTH];
 	char *m_OldLineBuffer;
@@ -85,15 +85,27 @@ class CSerial
 	bool m_Working;
 	bool m_FirstTime;
 	bool m_ValidNMEA;
+	bool m_Writer;
+
+
+
+#if defined(_WIN32) || defined(_WIN64)
+	HANDLE m_ThreadHANDLE;
+	DWORD threadID;
+#endif
+
 	void StartThread();
 	int OpenPort(const char*, int);
 #if defined(_WIN32) || defined(_WIN64)
 	int ReadPort(HANDLE port, unsigned char *, int);
+	int WritePort(HANDLE port,unsigned char *buf, int size);
 #endif
 
 #if defined(_LINUX32) || defined(_LINUX64)
 	int ReadPort(int port,unsigned char *buf, int size);
+	int WritePort(int port,unsigned char *buf, int size);
 #endif
+
 	void FoldLine( unsigned char *Buffer, int BufferLength );
 	void PharseLine( char *_Data, int _DataLen );
 	void NMEASignal(unsigned char *Line);
@@ -134,11 +146,12 @@ public:
 	std::vector <SPorts>GetPorts();
 	void Stop();					// set stop flag
 	void Start();					// starts the connect thread
-    int Read();
-    void SetLength(int size);
-    bool Reconnect();
+	int Read();
+	int Write(unsigned char *buffer, int length);
+	void SetLength(int size);
+	bool Reconnect();
     //void SetNumberOfPorts(int val);
-	void SetPort(char *port);
+	void SetPort(const char *port);
 	void SetBaud(int baud);
 	size_t GetSignalCount();
 	SSignal *GetSignal(int idx);
@@ -147,12 +160,15 @@ public:
 	size_t GetLinesCount();
 	size_t GetSignalQuality();
 	bool GetValidNMEA();
+	void SetWriter(bool val);
+	bool GetWriter();
+	int GetLinesWriten();
 				
 	virtual void OnConnect();
 	virtual void OnDisconnect();
 	virtual void OnData(unsigned char *buffer, int length);
 	virtual void OnExit();			
-	virtual void OnLine(unsigned char *buffer);
+	virtual void OnLine(unsigned char *buffer, int length);
 	virtual void OnStop();			// stop pressed or stopped
 	virtual void OnStart();			// start
 	virtual void OnAfterMainLoop();
@@ -161,6 +177,7 @@ public:
 	virtual void OnNewSignal(); // nowy znaleziony typ danych w sygnale
 	virtual void OnNoSignal();
 	virtual void OnValidNMEA();
+	virtual void OnInvalidNMEA();
 };
 
 #endif
