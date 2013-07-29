@@ -20,6 +20,7 @@ void *_LINUXThread(void *Param)
     CSerial *Serial = ((CSerial*)Param);
     Serial->OnBeforeMainLoop();
     Serial->SetWorkingFlag(true);
+
     while (true)
     {
 
@@ -29,21 +30,24 @@ void *_LINUXThread(void *Param)
 
         if (Serial->IsConnected())
         {
-		if(!Serial->GetWriter())   // reader mode
-		{
-			RetCode = Serial->Read();
-			Serial->SetLength(RetCode);
+	    
+	    if(!Serial->GetWriter())   // reader mode
+	    {
+	    	RetCode = Serial->Read();
+	    	Serial->SetLength(RetCode);
 
-			if (RetCode > -1) // all ok
-			    Serial->SetnErrors(0);
-            	else
-            		Serial->Reconnect();	
-		}
+	    	if (RetCode > -1)
+	    	{ // all ok
+	    	    Serial->ResetErrors();
+        	}else{
+        	    Serial->Reconnect();
+            	}
+
+	    }
 
         }else{
-            
-			Serial->Reconnect();
-			
+	
+		Serial->Reconnect();
         }
 
 
@@ -66,26 +70,8 @@ return 0;
 
 CSerial::CSerial()
 {
-    m_BadCrc = 0;
-    m_LinesCount = 0;
-    m_OldLineBuffer = NULL;
-    m_OldLineLength = 0;
-    m_EOLen = EOL_LENGTH;
-    m_emptyCount = 0;
-    m_Connected = false;
-    m_NumberOfPorts = -1;
-    m_OpenPort = false;
-    m_Working = false;
-    m_ValidDevice = false;
-    m_nErrors = 0;
-    m_Stop = false;
-    m_FirstTime = true;
-    m_ComPort = NULL;
     m_Baud = BaudRates[0];
     m_CheckCRC = false;
-    m_ValidNMEA = false;
-	vPorts.clear();
-	
 }
 
 CSerial::~CSerial()
@@ -112,10 +98,7 @@ CSerial::~CSerial()
     vPorts.clear();
     ClearSignals();
     ClearLineBuffer();
-    m_LinesCount = 0;
-    m_OldLineBuffer = NULL;
-    m_OldLineLength = 0;
-    m_Working = false;
+
 }
 
 void CSerial::SetWriter(bool val)
@@ -172,6 +155,8 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
     if(m_OldLineLength >= BUFFER_LENGTH)
 		ClearLineBuffer();
     
+    bool valid_nmea = false;
+    
     while( i < _DataLen )
     {
 
@@ -194,7 +179,7 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
             }
 
 		OnLine((unsigned char*)m_LineBuffer, m_OldLineLength + Len);
-		NMEASignal((unsigned char*)m_LineBuffer);
+		valid_nmea = NMEASignal((unsigned char*)m_LineBuffer);
 		DataPtr += m_EOLen;
 		i += m_EOLen;
 		Start += (Len + m_EOLen) - 1;
@@ -216,10 +201,15 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
 	memcpy((m_OldLineBuffer + m_OldLineLength), (_Data + Start ), Len);
 	m_OldLineLength += Len;
     }
-
+    
+    if(valid_nmea)
+	OnValidNMEA();
+    else
+	OnInvalidNMEA();	
+	
 }
 
-void CSerial::NMEASignal(unsigned char *line)
+bool CSerial::NMEASignal(unsigned char *line)
 {
 	m_LinesCount++;
 	
@@ -227,7 +217,7 @@ void CSerial::NMEASignal(unsigned char *line)
 	{
 		m_BadCrc++;
 		if(m_CheckCRC)
-			return;
+			return false;
 	}
 	
 	unsigned char *from = NULL;
@@ -240,11 +230,11 @@ void CSerial::NMEASignal(unsigned char *line)
 		from = from2;
 
 	if(from == NULL)
-		return;
+		return false;
 
 	unsigned char *to = (unsigned char*)memchr(from,',',strlen((char*)from));
 	if(to == NULL)
-		return;
+		return false;
 	
 	//if(from < to)
 	//{
@@ -260,8 +250,6 @@ void CSerial::NMEASignal(unsigned char *line)
 	bool add = true;
 	
 	m_ValidNMEA = true;
-	OnValidNMEA();
-
 
 	if(vSignals.size() != 0)
 	{
@@ -289,13 +277,15 @@ void CSerial::NMEASignal(unsigned char *line)
 		if(!m_ValidNMEA)
 		{
 		    m_ValidNMEA = true;
-		    OnValidNMEA();
+
 		}    
 		
 	}else{
 	
 		free(buf);
 	}
+	
+	return m_ValidNMEA;
 }
 
 bool CSerial::CheckChecksum(const char *nmea_line) {
@@ -514,22 +504,33 @@ void CSerial::Stop()
 	WaitForSingleObject(m_ThreadHANDLE,INFINITE);
 #endif
 #if defined(_LINUX32) || defined(_LINUX64)
-	sleep(0);
+	//sleep(0);
 #endif
         m_OpenPort = false;
     }
 
     ClearSignals();
 
-    m_Connected = false;
-    m_ValidDevice = false;
-    memset(m_SerialBuffer,0,BUFFER);
-    m_BufferLength = 0;
-    m_ValidNMEA = false;
-    ClearLineBuffer();
+    m_BadCrc = 0;
     m_LinesCount = 0;
     m_OldLineBuffer = NULL;
     m_OldLineLength = 0;
+    m_EOLen = EOL_LENGTH;
+    m_EmptyCount = 0;
+    m_Connected = false;
+    m_NumberOfPorts = -1;
+    m_OpenPort = false;
+    m_Working = false;
+    m_ValidDevice = false;
+    m_Errors = 0;
+    m_FirstTime = true;
+    m_ComPort = NULL;
+    m_Baud = BaudRates[0];
+    m_CheckCRC = false;
+    m_ValidNMEA = false;
+    m_BufferLength = -1;
+    m_Writer = false;
+    vPorts.clear();
 
 }
 
@@ -538,10 +539,28 @@ void CSerial::Start()
     if (m_Working)
         return;
 
-    OnStart();
+    m_BadCrc = 0;
+    m_LinesCount = 0;
+    m_OldLineBuffer = NULL;
+    m_OldLineLength = 0;
+    m_EOLen = EOL_LENGTH;
+    m_EmptyCount = 0;
+    m_Connected = false;
+    m_NumberOfPorts = -1;
+    m_OpenPort = false;
+    m_Working = false;
+    m_ValidDevice = false;
+    m_Errors = 0;
     m_Stop = false;
-	
-	StartThread();
+    m_FirstTime = true;
+    m_ComPort = NULL;
+    m_ValidNMEA = false;
+    m_BufferLength = -1;
+    vPorts.clear();
+
+    OnStart();
+
+    StartThread();
 
 }
 
@@ -562,7 +581,7 @@ const char *CSerial::GetPortName()
 
 bool CSerial::Connect(const char *port, int baud_rate)
 {
-    if (m_Stop) return false;
+    //if (m_Stop) return false;
 
     m_BadCrc = 0;
     m_LinesCount = 0;
@@ -570,38 +589,50 @@ bool CSerial::Connect(const char *port, int baud_rate)
     strcpy(m_Port,port);
 
     OpenPort(port,baud_rate);
-    
+
 #if defined(_WIN32) || defined(_WIN64)
     if (m_ComPort != NULL)
     {
 #endif
 #if defined(_LINUX32) || defined(_LINUX64)
-    if (m_ComPort != 0)
+    if (m_ComPort > -1)
     {
 #endif
-
         m_Connected = true;
         m_OpenPort = true;
         OnConnect();
-    }
-    else
-    {
+
+    }else{
+
         m_Connected = false;
         OnDisconnect();
     }
-	
+    //fprintf(stderr,"CONNECTED %d\n",m_Connected);
     return m_Connected;
+
+}
+void CSerial::Disconnect()
+{
+//    if(m_OpenPort)
+//  
+    flock(m_ComPort,LOCK_UN);
+	//tcsetattr(m_ComPort, TCSANOW, &m_OldPortSettings);
+    int ret = close(m_ComPort);
+    fprintf(stderr,"Close %s %d %d\n",m_Port,m_Baud, ret);
+    m_ComPort = -1;
+    m_Connected = false;
+    m_OpenPort = false;
+    m_FirstTime = true;
 
 }
 
 bool CSerial::Reconnect()
 {
 
-    if (m_Stop)
-        return false;
-
+    //if (m_Stop)
+    //    return false;
 	bool con = false;
-	m_FirstTime = false;
+	
 #if defined(_WIN32) || defined(_WIN64)
 	Sleep(1000);
 #endif
@@ -618,9 +649,10 @@ bool CSerial::Reconnect()
 #endif
 	
 	con = Connect(m_Port,m_Baud);
-	OnReconnect();
-	
+	if(!m_FirstTime)
+	    OnReconnect();
 
+    m_FirstTime = false;
     return con;
 }
 
@@ -631,11 +663,13 @@ void CSerial::SetPort(const char *port)
 
 void CSerial::SetBaud(int baud)
 {
-	m_Baud = baud;
+    //m_FirstTime = true;
+    m_Baud = baud;
 }
 
 bool CSerial::IsConnected()
 {
+    //fprintf(stderr,"IsConnected %d",m_Connected);
     return m_Connected;
 }
 
@@ -651,30 +685,43 @@ SSignal *CSerial::GetSignal(int idx)
 
 int CSerial::Read()
 {
+    struct timeval tv;
+    int retval;
     m_ValidNMEA = false;
     memset(m_SerialBuffer,0,BUFFER);
-    m_BufferLength = ReadPort(m_ComPort,m_SerialBuffer,BUFFER);
-    if(m_BufferLength == 0)
-    	m_emptyCount++;
+    fd_set rfds;
+    FD_ZERO(&rfds);
+    FD_SET(m_ComPort, &rfds);
+
+    tv.tv_sec = 5;
+    tv.tv_usec = 0;
+    retval = select(1,&rfds,NULL,NULL,&tv);
+    if(retval)
+	fprintf(stderr,"Data is available\n");
     else
-    	m_emptyCount = 0;
-    
-    if(m_emptyCount >= 5)
+	fprintf(stderr,"Timeout\n");
+
+    m_BufferLength = ReadPort(m_ComPort,m_SerialBuffer,BUFFER);
+
+    fprintf(stderr,"Read %d\n",m_BufferLength);
+    if(m_BufferLength == 0)
+    	m_EmptyCount++;
+    else
+    	m_EmptyCount = 0;
+
+    if(m_EmptyCount >= MAX_ZERO_COUNTER)
     {
-	//m_BufferLength = -1;
-	//printf("no signal on port %s\n",GetPortName());
 	OnNoSignal();
-	m_emptyCount = 0;
+	m_EmptyCount = 0;
     }
 	
-	if(m_BufferLength > 0)
-	{
-		OnData(m_SerialBuffer,m_BufferLength);
-		//FoldLine(m_SerialBuffer,m_BufferLength);
-		//fprintf(stderr,"BUFFER:%s",m_SerialBuffer);
-		PharseLine((char*)m_SerialBuffer,m_BufferLength);
-	}
-	return m_BufferLength;
+    if(m_BufferLength > 0)
+    {
+    	OnData(m_SerialBuffer,m_BufferLength);
+    	PharseLine((char*)m_SerialBuffer,m_BufferLength);
+    }
+
+    return m_BufferLength;
 }
 
 int CSerial::Write(unsigned char *buffer, int length)
@@ -704,14 +751,21 @@ int CSerial::GetBaudRate()
     return m_Baud;
 }
 
-int CSerial::GetnErrors()
+int CSerial::GetErrors()
 {
-    return m_nErrors;
+    fprintf(stderr,"Errors %d\n",m_Errors);
+    return m_Errors;
 }
 
-void CSerial::SetnErrors(int n)
+void CSerial::IncrementErrors()
 {
-    m_nErrors = n;
+    fprintf(stderr,"Increment %d\n",m_Errors);
+    m_Errors++;
+}
+
+void CSerial::ResetErrors()
+{
+    m_Errors = 0;
 }
 
 unsigned char *CSerial::GetBuffer()
@@ -751,13 +805,12 @@ bool CSerial::GetValidNMEA()
     return m_ValidNMEA;
 }
 
-
 #ifdef __linux__   /* Linux */
 #include <sys/file.h>
 #include <errno.h>
 
 
-int CSerial::OpenPort(const char *port, int baudrate)
+void CSerial::OpenPort(const char *port, int baudrate)
 {
     int baudr;
     int error;
@@ -774,26 +827,26 @@ int CSerial::OpenPort(const char *port, int baudrate)
     case   38400 : baudr = B38400;break;
     case   57600 : baudr = B57600;break;
     case  115200 : baudr = B115200;break;
-    default      : return 1; break;
+    default      : return; break;
     }
 
     m_ComPort = open(port, O_RDWR | O_NOCTTY | O_NDELAY );
 
     if(m_ComPort==-1)
-        return 2;
+        return;
 
     error = flock(m_ComPort, LOCK_EX | LOCK_NB );
     if(error==-1)
     {
         close(m_ComPort);
-        return 3;
+        return;
     }
 
     error = tcgetattr(m_ComPort, &m_OldPortSettings);
     if(error==-1)
     {
         close(m_ComPort);
-        return 4;
+        return;
     }
 
     memset(&port_settings, 0, sizeof(port_settings));  /* clear the new struct */
@@ -801,21 +854,31 @@ int CSerial::OpenPort(const char *port, int baudrate)
     port_settings.c_iflag = IGNPAR;
     port_settings.c_oflag = 0;
     port_settings.c_cc[VMIN] = 128;      /* block untill n bytes are received */
-    port_settings.c_cc[VTIME] = 0;     /* block untill a timer expires (n * 100 mSec.) */
+    port_settings.c_cc[VTIME] =  0;     /* block untill a timer expires (n * 100 mSec.) */
     error = tcsetattr(m_ComPort, TCSANOW, &port_settings);
 
     if(error==-1)
     {
         close(m_ComPort);
-        return 5;
+        return;
     }
 
-    return 0;
+    return;
 }
 
 
 int CSerial::ReadPort(int ComPort,unsigned char *buf, int size)
 {
+    //int res;
+    //struct timeval timeout;
+    //fd_set readfs;
+    //timeout.tv_usec = 0;
+    //timeout.tv_sec = 5;
+
+    //FD_SET(m_ComPort,&readfs);
+    //res = select(1,&readfs,NULL,NULL,&timeout);
+    //fprintf(stderr,"Read RESULT : %d",res);
+
     int n;
 
 #ifndef __STRICT_ANSI__                       /* __STRICT_ANSI__ is defined when the -ansi option is used for gcc */
@@ -968,7 +1031,7 @@ void CSerial::OpenPort(const char *port, int baudrate)
 int CSerial::ReadPort(HANDLE port,unsigned char *buf, int size)
 {
 	int nBytesRead = 0;
-    if(size > 4096)  
+	if(size > 4096)  
 		size = 4096;
 	    
 	BOOL bResult = ReadFile(port, buf, size, (LPDWORD)&nBytesRead, NULL);
@@ -1003,6 +1066,7 @@ int CSerial::WritePort(HANDLE port,unsigned char *buf, int size)
 // virtual methods
 void CSerial::OnConnect()
 {
+    fprintf(stderr,"on connect \n");
 }
 void CSerial::OnDisconnect()
 {
@@ -1040,4 +1104,6 @@ void CSerial::OnNoSignal()
 void CSerial::OnValidNMEA()
 {
 }
-
+void CSerial::OnInvalidNMEA()
+{
+}
