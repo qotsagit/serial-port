@@ -125,6 +125,7 @@ public:
 	int GetBaudRate();
 	unsigned char *GetBuffer();
 	bool IsConnected();
+	void SetIsConnected(bool val);
 	void ResetErrors();				
 	void IncrementErrors();
 	int GetErrors();
