@@ -27,8 +27,7 @@
 #define PORT_NAME_LENGTH    	16
 #define PORT_STRING_LENGTH  	16
 
-#define BUFFER			4096
-#define BUFFER_LENGTH 		1024
+#define BUFFER			1024
 #define MAX_ZERO_COUNTER 	5
 #define MAX_READ_ERRORS		2
 
@@ -68,10 +67,10 @@ class CSerial
 	bool m_CheckCRC;
 	int m_BadCrc,m_LinesCount,m_LinesWritten;
 	int m_EOLen;
-	char m_LineBuffer[BUFFER_LENGTH];
+	unsigned char *m_LineBuffer;
 	char *m_OldLineBuffer;
 	int m_OldLineLength;
-	unsigned char _LineBuffer[BUFFER_LENGTH];
+//	unsigned char _LineBuffer[BUFFER_LENGTH];
 	int m_EmptyCount;			// flaga jest decrementowana kiedy bufor odczytu z pliku jest rowny 0
 	int m_NumberOfPorts;		// iloœæ portów do skanowania
 	//int m_BaudIndex;			// index baudrate w tablicy baud rate
@@ -103,11 +102,12 @@ class CSerial
 
 	void FoldLine( unsigned char *Buffer, int BufferLength );
 	void PharseLine( char *_Data, int _DataLen );
-	bool NMEASignal(unsigned char *Line);
+	int NMEASignal(unsigned char *Line);
 	void ClearLineBuffer(void);
 	bool CheckChecksum(const char *nmea_line);
 	void ClearSignals();
-	
+
+
 public:
 
 	CSerial();
@@ -167,6 +167,7 @@ public:
 	virtual void OnData(unsigned char *buffer, int length);
 	virtual void OnExit();
 	virtual void OnLine(unsigned char *buffer, int length);
+	virtual void OnNMEALine(unsigned char *buffer, int length);
 	virtual void OnStop();			// stop pressed or stopped
 	virtual void OnStart();			// start
 	virtual void OnAfterMainLoop();
@@ -176,7 +177,7 @@ public:
 	virtual void OnNoSignal();
 	virtual void OnValidNMEA();
 	virtual void OnInvalidNMEA();
-	
+	virtual void OnBadCRC();
 };
 
 #endif

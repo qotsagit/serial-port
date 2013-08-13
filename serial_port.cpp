@@ -71,7 +71,7 @@ return 0;
 CSerial::CSerial()
 {
     m_Baud = BaudRates[0];
-    m_CheckCRC = false;
+    m_CheckCRC = true;
 }
 
 CSerial::~CSerial()
@@ -152,10 +152,10 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
     int i = 0, Start = 0;
     int Len;
     char *DataPtr = (char*)_Data;
-    if(m_OldLineLength >= BUFFER_LENGTH)
-		ClearLineBuffer();
+//    if(m_OldLineLength >= BUFFER_LENGTH)
+//	ClearLineBuffer();
     
-    bool valid_nmea = false;
+    int valid_nmea = 1;
     
     while( i < _DataLen )
     {
@@ -167,22 +167,26 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
             Len = Len + 1;
             if( m_OldLineLength == 0 )
             {
-                memset(m_LineBuffer,0,BUFFER_LENGTH);
+		m_LineBuffer = (unsigned char*)malloc(Len + 1);
+                memset(m_LineBuffer,0,Len + 1);
                 memcpy(m_LineBuffer, (_Data + Start ), Len);
 
             }else{
 
-                memset(m_LineBuffer,0,BUFFER_LENGTH);
+		m_LineBuffer = (unsigned char*)malloc(m_OldLineLength + Len + 1);
+                memset(m_LineBuffer,0,m_OldLineLength + Len + 1);
                 memcpy(m_LineBuffer, m_OldLineBuffer, m_OldLineLength);
                 memcpy((m_LineBuffer + m_OldLineLength), (_Data + Start ), Len);
-                ClearLineBuffer();
+		ClearLineBuffer();
             }
 
-		OnLine((unsigned char*)m_LineBuffer, strlen((const char*)m_LineBuffer));
-		valid_nmea = NMEASignal((unsigned char*)m_LineBuffer);
-		DataPtr += m_EOLen;
-		i += m_EOLen;
-		Start += (Len + m_EOLen) - 1;
+	    OnLine((unsigned char*)m_LineBuffer, strlen((const char*)m_LineBuffer));
+	    valid_nmea = NMEASignal((unsigned char*)m_LineBuffer);
+	    free(m_LineBuffer);
+
+	    DataPtr += m_EOLen;
+	    i += m_EOLen;
+	    Start += (Len + m_EOLen) - 1;
 
         }else{
 
@@ -202,24 +206,31 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
 	m_OldLineLength += Len;
     }
     
-    if(valid_nmea)
+    if(valid_nmea == 0)
 	OnValidNMEA();
-    else
+    if(valid_nmea == 1)
 	OnInvalidNMEA();
+    if(valid_nmea == 2)
+	OnBadCRC();	
+//    if(valid_plain_text)
+//	OnValidPlainText();
+//    else
+//	OnInvalidPlainText();
 	
 }
 
-bool CSerial::NMEASignal(unsigned char *line)
+int CSerial::NMEASignal(unsigned char *line)
 {
 	m_LinesCount++;
-	
+
 	if(!CheckChecksum((const char*)line))
 	{
 		m_BadCrc++;
 		if(m_CheckCRC)
-			return false;
+		    return 2;
+		fprintf(stderr,"Bad crc %d %s\n",m_BadCrc,line);
 	}
-	
+
 	unsigned char *from = NULL;
 	unsigned char *from1 = (unsigned char*)memchr(line,'!',strlen((char*)line));
 	if(from1 != NULL)
@@ -230,19 +241,22 @@ bool CSerial::NMEASignal(unsigned char *line)
 		from = from2;
 
 	if(from == NULL)
-		return false;
+		return 1;
 
 	unsigned char *to = (unsigned char*)memchr(from,',',strlen((char*)from));
 	if(to == NULL)
-		return false;
+		return 1;
 	
-	//if(from < to)
-	//{
-	    //fprintf(stderr,"FROM:%s\n",from);
-	    //fprintf(stderr,"To:%s\n",to);
-	//    return;
-	//}    
+	if(from > to)
+	{
+	    fprintf(stderr,"FROM:%s\n",from);
+	    fprintf(stderr,"To:%s\n",to);
+	    fprintf(stderr,"ERROR\n");
+	    return 1;
+	}    
 
+	OnNMEALine(from,strlen((const char*)from));
+	
 	from = from + (3 * sizeof(char));
 	unsigned char *buf = (unsigned char*)malloc( to - from + 1 );
 	memset(buf,0,to - from + 1);
@@ -285,8 +299,18 @@ bool CSerial::NMEASignal(unsigned char *line)
 		free(buf);
 	}
 	
-	return m_ValidNMEA;
+	if(m_ValidNMEA)
+	    return 0;
+	else
+	    return 1;
+
 }
+
+//bool CSerial::ValidPlainText(const char *line)
+//{
+    
+//}
+
 
 bool CSerial::CheckChecksum(const char *nmea_line) {
 
@@ -704,8 +728,10 @@ int CSerial::Read()
     retval = select(m_ComPort + 1,&rfds,NULL,NULL,&tv);
     //fprintf(stderr,"%s RET VAL....... %d\n",GetPortName(),retval);
     if(!retval)
+    {
+	fprintf(stderr,"%s RETVA[%d]\n",GetPortName(),retval);
 	return -1;
-
+    }
     m_BufferLength = ReadPort(m_ComPort,m_SerialBuffer,BUFFER);
 
     if(m_BufferLength == 0)
@@ -1083,6 +1109,9 @@ void CSerial::OnDisconnect()
 void CSerial::OnLine(unsigned char* buffer,int length)
 {
 }
+void CSerial::OnNMEALine(unsigned char* buffer,int length)
+{
+}
 void CSerial::OnData(unsigned char* buffer, int length)
 {
 }
@@ -1116,3 +1145,9 @@ void CSerial::OnValidNMEA()
 void CSerial::OnInvalidNMEA()
 {
 }
+void CSerial::OnBadCRC()
+{
+}
+//void CSerial::OnInvalidPlainText()
+//{
+//}
