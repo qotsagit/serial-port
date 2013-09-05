@@ -552,7 +552,6 @@ void CSerial::Stop()
     m_FirstTime = true;
     m_ComPort = NULL;
     m_Baud = BaudRates[0];
-    m_CheckCRC = false;
     m_ValidNMEA = false;
     m_BufferLength = -1;
     m_Writer = false;
