@@ -72,6 +72,8 @@ CSerial::CSerial()
 {
     m_Baud = BaudRates[0];
     m_CheckCRC = true;
+	m_OpenPort = false;
+	m_OldLineBuffer = NULL;
 }
 
 CSerial::~CSerial()
@@ -639,11 +641,13 @@ void CSerial::Disconnect()
 {
 //    if(m_OpenPort)
 //  
-    flock(m_ComPort,LOCK_UN);
+#if defined(_LINUX32) || defined(_LINUX64)    
+	flock(m_ComPort,LOCK_UN);
 	//tcsetattr(m_ComPort, TCSANOW, &m_OldPortSettings);
     int ret = close(m_ComPort);
     //fprintf(stderr,"Close %s %d %d\n",m_Port,m_Baud, ret);
     m_ComPort = -1;
+#endif
     m_Connected = false;
     m_OpenPort = false;
     m_FirstTime = true;
@@ -719,7 +723,8 @@ int CSerial::Read()
     int retval;
     m_ValidNMEA = false;
     memset(m_SerialBuffer,0,BUFFER);
-    fd_set rfds;
+#if defined(_LINUX32) || defined(_LINUX64)
+	fd_set rfds;
     FD_ZERO(&rfds);
     FD_SET(m_ComPort, &rfds);
 
@@ -729,10 +734,12 @@ int CSerial::Read()
     //fprintf(stderr,"%s RET VAL....... %d\n",GetPortName(),retval);
     if(!retval)
     {
-	fprintf(stderr,"%s RETVA[%d]\n",GetPortName(),retval);
-	return -1;
+		fprintf(stderr,"%s RETVA[%d]\n",GetPortName(),retval);
+		return -1;
     }
-    m_BufferLength = ReadPort(m_ComPort,m_SerialBuffer,BUFFER);
+#endif
+    
+	m_BufferLength = ReadPort(m_ComPort,m_SerialBuffer,BUFFER);
 
     if(m_BufferLength == 0)
     	m_EmptyCount++;
