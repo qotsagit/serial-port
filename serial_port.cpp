@@ -74,6 +74,8 @@ CSerial::CSerial()
     m_CheckCRC = true;
 	m_OpenPort = false;
 	m_OldLineBuffer = NULL;
+	m_Working = false;
+	m_Writer = false;
 }
 
 CSerial::~CSerial()
@@ -546,7 +548,6 @@ void CSerial::Stop()
     m_Connected = false;
     m_NumberOfPorts = -1;
     m_OpenPort = false;
-    m_Working = false;
     m_ValidDevice = false;
     m_Errors = 0;
     m_FirstTime = true;
@@ -606,7 +607,7 @@ const char *CSerial::GetPortName()
 
 bool CSerial::Connect(const char *port, int baud_rate)
 {
-    //if (m_Stop) return false;
+    if (m_Stop) return false;
 
     m_BadCrc = 0;
     m_LinesCount = 0;
@@ -655,9 +656,9 @@ void CSerial::Disconnect()
 
 bool CSerial::Reconnect()
 {
-
-    //if (m_Stop)
-    //    return false;
+	if (m_Stop)
+        return false;
+	
 	bool con = false;
 	if(!m_FirstTime)
 	    OnReconnect();
@@ -683,7 +684,7 @@ bool CSerial::Reconnect()
     return con;
 }
 
-void CSerial::SetPort(const char *port)
+void CSerial::_SetPort(const char *port)
 {
 	strcpy(m_Port,port);
 }

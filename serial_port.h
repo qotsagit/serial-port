@@ -148,7 +148,7 @@ public:
 	void SetLength(int size);
 	bool Reconnect();
     //void SetNumberOfPorts(int val);
-	void SetPort(const char *port);
+	void _SetPort(const char *port);
 	void SetBaud(int baud);
 	size_t GetSignalCount();
 	SSignal *GetSignal(int idx);
