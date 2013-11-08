@@ -166,7 +166,7 @@ public:
 	virtual void OnDisconnect();
 	virtual void OnData(unsigned char *buffer, int length);
 	virtual void OnExit();
-	virtual void OnLine(unsigned char *buffer, int length);
+	virtual void OnLine(unsigned char *buffer, int length, int valid_nmea);
 	virtual void OnNMEALine(unsigned char *buffer, int length);
 	virtual void OnStop();			// stop pressed or stopped
 	virtual void OnStart();			// start

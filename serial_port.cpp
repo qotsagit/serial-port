@@ -27,32 +27,31 @@ void *_LINUXThread(void *Param)
         if (Serial->GetStop())
             break;
 
-
         if (Serial->IsConnected())
         {
 	    
-	    if(!Serial->GetWriter())   // reader mode
-	    {
-	    	RetCode = Serial->Read();
-	    	Serial->SetLength(RetCode);
+			if(!Serial->GetWriter())   // reader mode
+			{
+	    		RetCode = Serial->Read();
+	    		Serial->SetLength(RetCode);
 
-	    	if (RetCode > -1)
-	    	{ // all ok
-	    	    Serial->ResetErrors();
-        	}else{
-        	    Serial->SetIsConnected(false);
-            	}
+	    		if (RetCode > -1)
+	    		{ // all ok
+	    			Serial->ResetErrors();
+        		}else{
+        			Serial->SetIsConnected(false);
+				}
 
-	    }
+			}
 
-        }else{
-	
-		Serial->Reconnect();
-        }
+		}else{
+		
+			Serial->Reconnect();
+		}
 
 
 #ifdef _WIN32
-        Sleep(500);
+        Sleep(50);
 #endif
 #if defined(_LINUX32) || defined(_LINUX64)
         sleep(1);
@@ -76,6 +75,9 @@ CSerial::CSerial()
 	m_OldLineBuffer = NULL;
 	m_Working = false;
 	m_Writer = false;
+	m_LineBuffer = NULL;
+
+	
 }
 
 CSerial::~CSerial()
@@ -102,6 +104,9 @@ CSerial::~CSerial()
     vPorts.clear();
     ClearSignals();
     ClearLineBuffer();
+	memset(m_SerialBuffer,0,BUFFER);
+	if(m_LineBuffer)
+		free(m_LineBuffer);
 
 }
 
@@ -165,28 +170,37 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
     {
 
 	if( memcmp(DataPtr, "\n", 1) == 0)
-        {
+    {
 
-	    Len = i - Start;
+			Len = i - Start;
             Len = Len + 1;
-            if( m_OldLineLength == 0 )
-            {
-		m_LineBuffer = (unsigned char*)malloc(Len + 1);
+		if( m_OldLineLength == 0 )
+        {
+				m_LineBuffer = (unsigned char*)malloc(Len + 1);
                 memset(m_LineBuffer,0,Len + 1);
                 memcpy(m_LineBuffer, (_Data + Start ), Len);
 
             }else{
 
-		m_LineBuffer = (unsigned char*)malloc(m_OldLineLength + Len + 1);
+				m_LineBuffer = (unsigned char*)malloc(m_OldLineLength + Len + 1);
                 memset(m_LineBuffer,0,m_OldLineLength + Len + 1);
                 memcpy(m_LineBuffer, m_OldLineBuffer, m_OldLineLength);
                 memcpy((m_LineBuffer + m_OldLineLength), (_Data + Start ), Len);
-		ClearLineBuffer();
+				ClearLineBuffer();
             }
 
-	    OnLine((unsigned char*)m_LineBuffer, strlen((const char*)m_LineBuffer));
-	    valid_nmea = NMEASignal((unsigned char*)m_LineBuffer);
+		valid_nmea = NMEASignal((unsigned char*)m_LineBuffer);
+		if(valid_nmea == 0)
+			OnValidNMEA();
+		if(valid_nmea == 1)
+			OnInvalidNMEA();
+		if(valid_nmea == 2)
+			OnBadCRC();	
+
+	    OnLine((unsigned char*)m_LineBuffer, strlen((const char*)m_LineBuffer),valid_nmea);
+	    
 	    free(m_LineBuffer);
+		m_LineBuffer = NULL;
 
 	    DataPtr += m_EOLen;
 	    i += m_EOLen;
@@ -210,12 +224,7 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
 	m_OldLineLength += Len;
     }
     
-    if(valid_nmea == 0)
-	OnValidNMEA();
-    if(valid_nmea == 1)
-	OnInvalidNMEA();
-    if(valid_nmea == 2)
-	OnBadCRC();	
+   
 //    if(valid_plain_text)
 //	OnValidPlainText();
 //    else
@@ -527,14 +536,18 @@ void CSerial::Stop()
 	//fprintf(stderr,"Close form stop %d\n",a);
 	//m_ComPort = -1;
 #endif
-
+	   m_OpenPort = false;
+	}
+	
+	if(m_Working)
+	{
 #if defined(_WIN32) || defined(_WIN64)
-	WaitForSingleObject(m_ThreadHANDLE,INFINITE);
+		WaitForSingleObject(m_ThreadHANDLE,2000);
 #endif
 #if defined(_LINUX32) || defined(_LINUX64)
-	//sleep(0);
+		//sleep(0);
 #endif
-        m_OpenPort = false;
+     
     }
 
     ClearSignals();
@@ -750,6 +763,7 @@ int CSerial::Read()
     {
 	OnNoSignal();
 	m_EmptyCount = 0;
+	m_Connected = false;
     }
 	
     if(m_BufferLength > 0)
@@ -1077,7 +1091,7 @@ int CSerial::ReadPort(HANDLE port,unsigned char *buf, int size)
 		size = 4096;
 	    
 	BOOL bResult = ReadFile(port, buf, size, (LPDWORD)&nBytesRead, NULL);
-	fprintf(stdout,"Readed %d\n",nBytesRead);
+	//fprintf(stdout,"Readed %d\n",nBytesRead);
 	
 	if(bResult)
 		return nBytesRead;
@@ -1113,7 +1127,7 @@ void CSerial::OnConnect()
 void CSerial::OnDisconnect()
 {
 }
-void CSerial::OnLine(unsigned char* buffer,int length)
+void CSerial::OnLine(unsigned char* buffer,int length, int valid_nmea)
 {
 }
 void CSerial::OnNMEALine(unsigned char* buffer,int length)
