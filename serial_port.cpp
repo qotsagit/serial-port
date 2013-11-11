@@ -78,6 +78,7 @@ CSerial::CSerial()
 	m_Working = false;
 	m_Writer = false;
 	m_LineBuffer = NULL;
+	m_ReconnectCounter = 0;
 
 	
 }
@@ -86,29 +87,9 @@ CSerial::~CSerial()
 {
     m_Stop = true;
     m_Connected = false;
-    //if (m_OpenPort)
-    //{
-#ifdef _WIN32
-	//CloseHandle(m_ComPort);
-	//m_ComPort = NULL;
-#endif
-#if defined(_LINUX32) || defined(_LINUX64)
-	//flock(m_ComPort,LOCK_UN);
-	//tcsetattr(m_ComPort, TCSANOW, &m_OldPortSettings);
-	//close(m_ComPort);
-//	m_ComPort = -1;
-#endif
-
-     //   m_OpenPort = false;
-   // }
-    
     vPorts.clear();
     ClearSignals();
     ClearLineBuffer();
-	//memset(m_SerialBuffer,0,BUFFER);
-	//if(m_LineBuffer)
-		//free(m_LineBuffer);
-
 }
 
 void CSerial::SetWriter(bool val)
@@ -521,7 +502,7 @@ void CSerial::Stop()
 {
     m_Stop = true;
     OnStop();
-    //fprintf(stderr,"STOP\n");
+
     if (m_OpenPort) // wa¿ne w tym miejscu po fladze stop
     {
 		m_OpenPort = false;
@@ -539,18 +520,13 @@ void CSerial::Stop()
 #endif
 	  
 	}
-	
-//	while(m_Working)
-//		Sleep(150);
 
-	//if(m_Working)
-	//{
-//#if defined(_WIN32) || defined(_WIN64)
+#if defined(_WIN32) || defined(_WIN64)
 		WaitForSingleObject(m_ThreadHANDLE,INFINITE);
-//#endif
-//#if defined(_LINUX32) || defined(_LINUX64)
+#endif
+#if defined(_LINUX32) || defined(_LINUX64)
 	//	//sleep(0);
-//#endif
+#endif
      
    // }
 
@@ -676,12 +652,17 @@ bool CSerial::Reconnect()
 	if (m_Stop)
         return false;
 	
+	m_ReconnectCounter++;
+	
+	if(m_ReconnectCounter < 20)
+		return false;
+
 	bool con = false;
 	if(!m_FirstTime)
 	    OnReconnect();
 	
 #if defined(_WIN32) || defined(_WIN64)
-	Sleep(100);
+	//Sleep(100);
 #endif
 #if defined(_LINUX32) || defined(_LINUX64)
     if(m_OpenPort)
@@ -696,6 +677,7 @@ bool CSerial::Reconnect()
 #endif
 	
 	con = Connect(m_Port,m_Baud);
+	m_ReconnectCounter = 0;
 
     m_FirstTime = false;
     return con;

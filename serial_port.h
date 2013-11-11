@@ -87,6 +87,7 @@ class CSerial
 	bool m_FirstTime;
 	bool m_ValidNMEA;
 	bool m_Writer;
+	int m_ReconnectCounter;
 
 	void StartThread();
 	void OpenPort(const char*, int);
