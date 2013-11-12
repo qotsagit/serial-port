@@ -79,7 +79,7 @@ CSerial::CSerial()
 	m_Writer = false;
 	m_LineBuffer = NULL;
 	m_ReconnectCounter = 0;
-
+	m_SerialBuffer = (unsigned char*)malloc(BUFFER);
 	
 }
 
@@ -90,6 +90,7 @@ CSerial::~CSerial()
     vPorts.clear();
     ClearSignals();
     ClearLineBuffer();
+	ClearSerialBuffer();
 }
 
 void CSerial::SetWriter(bool val)
@@ -324,6 +325,11 @@ bool CSerial::CheckChecksum(const char *nmea_line) {
  
 }
 
+void CSerial::ClearSerialBuffer()
+{
+	free(m_SerialBuffer);
+}
+
 void CSerial::ClearLineBuffer(void)
 {
 
@@ -534,7 +540,6 @@ void CSerial::Stop()
 
     m_BadCrc = 0;
     m_LinesCount = 0;
-    m_OldLineBuffer = NULL;
     m_OldLineLength = 0;
     m_EOLen = EOL_LENGTH;
     m_EmptyCount = 0;
@@ -550,7 +555,7 @@ void CSerial::Stop()
     m_BufferLength = -1;
     m_Writer = false;
     vPorts.clear();
-
+	ClearLineBuffer();
 }
 
 void CSerial::Start()
@@ -632,8 +637,8 @@ bool CSerial::Connect(const char *port, int baud_rate)
 }
 void CSerial::Disconnect()
 {
-//    if(m_OpenPort)
-//  
+	
+	CloseHandle(m_ComPort);
 #if defined(_LINUX32) || defined(_LINUX64)    
 	flock(m_ComPort,LOCK_UN);
 	//tcsetattr(m_ComPort, TCSANOW, &m_OldPortSettings);
@@ -749,7 +754,7 @@ int CSerial::Read()
     {
 		OnNoSignal();
 		m_EmptyCount = 0;
-		m_Connected = false;
+		Disconnect();
     }
 	
     if(m_BufferLength > 0)
@@ -1026,8 +1031,7 @@ void CSerial::OpenPort(const char *port, int baudrate)
 	if(m_ComPort == INVALID_HANDLE_VALUE)
     {	
 		m_ComPort = NULL;
-        //printf("unable to open comport\n");
-		return;
+        return;
     }
 		
     DCB port_settings;
@@ -1036,7 +1040,6 @@ void CSerial::OpenPort(const char *port, int baudrate)
 
     if(!BuildCommDCBA(baudr, &port_settings))
     {
-        //printf("unable to set comport dcb settings\n");
         CloseHandle(m_ComPort);
 		m_ComPort = NULL;
 		return;
@@ -1044,7 +1047,6 @@ void CSerial::OpenPort(const char *port, int baudrate)
 	
     if(!SetCommState(m_ComPort, &port_settings))
     {
-        //printf("unable to set comport cfg settings\n");
         CloseHandle(m_ComPort);
 		m_ComPort = NULL;
 		return;
@@ -1060,7 +1062,6 @@ void CSerial::OpenPort(const char *port, int baudrate)
 
     if(!SetCommTimeouts(m_ComPort, &Cptimeouts))
     {
-        //printf("unable to set comport time-out settings\n");
         CloseHandle(m_ComPort);
 		m_ComPort = NULL;
         return;
@@ -1080,8 +1081,7 @@ int CSerial::ReadPort(HANDLE port,unsigned char *buf, int size)
 		size = 4096;
 	    
 	BOOL bResult = ReadFile(port, buf, size, (LPDWORD)&nBytesRead, NULL);
-	//fprintf(stdout,"Readed %d\n",nBytesRead);
-	
+		
 	if(bResult)
 		return nBytesRead;
 	else

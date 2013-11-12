@@ -28,7 +28,7 @@
 #define PORT_STRING_LENGTH  	16
 
 #define BUFFER			1024
-#define MAX_ZERO_COUNTER 	5
+#define MAX_ZERO_COUNTER 	100
 #define MAX_READ_ERRORS		2
 
 typedef struct
@@ -48,7 +48,7 @@ typedef struct
 
 class CSerial
 {
-	unsigned char m_SerialBuffer[BUFFER];
+	unsigned char *m_SerialBuffer;//[BUFFER];
 #if defined(_WIN32) || defined(_WIN64)
 	static DWORD WINAPI _W32Thread(void *Param);
 	HANDLE m_ComPort;
@@ -107,7 +107,7 @@ class CSerial
 	void ClearLineBuffer(void);
 	bool CheckChecksum(const char *nmea_line);
 	void ClearSignals();
-
+	void ClearSerialBuffer();
 
 public:
 
