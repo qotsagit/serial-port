@@ -20,12 +20,10 @@ void *_LINUXThread(void *Param)
     CSerial *Serial = ((CSerial*)Param);
     Serial->OnBeforeMainLoop();
     Serial->SetWorkingFlag(true);
-	//fprintf(stdout,"Start: %s\n",Serial->GetPortName());
-
+	
     while (true)
     {
-		//fprintf(stdout,"Stop:%d\n",Serial->GetStop());
-
+	
         if (Serial->GetStop())
             break;
 		
@@ -38,8 +36,8 @@ void *_LINUXThread(void *Param)
 	    		Serial->SetLength(RetCode);
 
 	    		if (RetCode > -1)
-	    		{ // all ok
-	    			Serial->ResetErrors();
+	    		{ 
+					Serial->ResetErrors();
         		}else{
         			Serial->SetIsConnected(false);
 				}
@@ -60,7 +58,7 @@ void *_LINUXThread(void *Param)
 #endif
 
     }
-    //fprintf(stdout,"Stop: %s",Serial->GetPortName());
+    
     Serial->OnAfterMainLoop();
     Serial->SetWorkingFlag(false);
     
@@ -79,6 +77,7 @@ CSerial::CSerial()
 	m_Writer = false;
 	m_LineBuffer = NULL;
 	m_ReconnectCounter = 0;
+	m_PharseLine = false;
 	m_SerialBuffer = (unsigned char*)malloc(BUFFER);
 	
 }
@@ -91,6 +90,11 @@ CSerial::~CSerial()
     ClearSignals();
     ClearLineBuffer();
 	ClearSerialBuffer();
+}
+
+void CSerial::SetParseLine(bool value)
+{
+	m_PharseLine = value;
 }
 
 void CSerial::SetWriter(bool val)
@@ -178,7 +182,7 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
 		if(valid_nmea == 2)
 			OnBadCRC();	
 
-	    OnLine((unsigned char*)m_LineBuffer, strlen((const char*)m_LineBuffer),valid_nmea);
+	    OnLine((unsigned char*)m_LineBuffer, strlen((const char*)m_LineBuffer));
 	    
 	    free(m_LineBuffer);
 		m_LineBuffer = NULL;
@@ -553,7 +557,7 @@ void CSerial::Stop()
     m_Baud = BaudRates[0];
     m_ValidNMEA = false;
     m_BufferLength = -1;
-    m_Writer = false;
+    //m_Writer = false;
     vPorts.clear();
 	ClearLineBuffer();
 }
@@ -611,7 +615,7 @@ bool CSerial::Connect(const char *port, int baud_rate)
     m_LinesCount = 0;
     m_Baud = baud_rate;
     strcpy(m_Port,port);
-
+	OnConnect();
     OpenPort(port,baud_rate);
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -624,14 +628,16 @@ bool CSerial::Connect(const char *port, int baud_rate)
 #endif
         m_Connected = true;
         m_OpenPort = true;
-        OnConnect();
+        
+		OnConnected();
 
     }else{
 
         m_Connected = false;
         OnDisconnect();
     }
-    //fprintf(stderr,"CONNECTED %d\n",m_Connected);
+    
+	
     return m_Connected;
 
 }
@@ -659,7 +665,7 @@ bool CSerial::Reconnect()
 	
 	m_ReconnectCounter++;
 	
-	if(m_ReconnectCounter < 20)
+	if(m_ReconnectCounter < RECCONNECT_COUNTER)
 		return false;
 
 	bool con = false;
@@ -759,8 +765,10 @@ int CSerial::Read()
 	
     if(m_BufferLength > 0)
     {
-    	OnData(m_SerialBuffer,m_BufferLength);
-    	PharseLine((char*)m_SerialBuffer,m_BufferLength);
+		if(m_PharseLine)
+    		PharseLine((char*)m_SerialBuffer,m_BufferLength);
+		else
+			OnData(m_SerialBuffer,m_BufferLength);
     }
 
     return m_BufferLength;
@@ -1190,12 +1198,16 @@ int CSerial::WritePort(HANDLE port,unsigned char *buf, int size)
 // virtual methods
 void CSerial::OnConnect()
 {
-    //fprintf(stderr,"on connect \n");
+
+}
+void CSerial::OnConnected()
+{
+
 }
 void CSerial::OnDisconnect()
 {
 }
-void CSerial::OnLine(unsigned char* buffer,int length, int valid_nmea)
+void CSerial::OnLine(unsigned char* buffer,int length)
 {
 }
 void CSerial::OnNMEALine(unsigned char* buffer,int length)

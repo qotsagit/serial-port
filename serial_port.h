@@ -27,9 +27,11 @@
 #define PORT_NAME_LENGTH    	16
 #define PORT_STRING_LENGTH  	16
 
-#define BUFFER			1024
+#define BUFFER				1024
 #define MAX_ZERO_COUNTER 	100
 #define MAX_READ_ERRORS		2
+
+#define RECCONNECT_COUNTER 20
 
 typedef struct
 {
@@ -88,6 +90,7 @@ class CSerial
 	bool m_ValidNMEA;
 	bool m_Writer;
 	int m_ReconnectCounter;
+	bool m_PharseLine;
 
 	void StartThread();
 	void OpenPort(const char*, int);
@@ -161,13 +164,15 @@ public:
 	void SetWriter(bool val);
 	bool GetWriter();
 	int GetLinesWriten();
+	void SetParseLine(bool value);
 
 				
 	virtual void OnConnect();
+	virtual void OnConnected();
 	virtual void OnDisconnect();
 	virtual void OnData(unsigned char *buffer, int length);
 	virtual void OnExit();
-	virtual void OnLine(unsigned char *buffer, int length, int valid_nmea);
+	virtual void OnLine(unsigned char *buffer, int length);
 	virtual void OnNMEALine(unsigned char *buffer, int length);
 	virtual void OnStop();			// stop pressed or stopped
 	virtual void OnStart();			// start
