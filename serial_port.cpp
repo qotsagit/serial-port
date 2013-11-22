@@ -79,6 +79,7 @@ CSerial::CSerial()
 	m_ReconnectCounter = 0;
 	m_PharseLine = false;
 	m_SerialBuffer = (unsigned char*)malloc(BUFFER);
+	m_ComPort = NULL;
 	
 }
 
@@ -513,11 +514,11 @@ void CSerial::Stop()
     m_Stop = true;
     OnStop();
 
-    if (m_OpenPort) // wa¿ne w tym miejscu po fladze stop
-    {
+    //if (m_OpenPort) // wa¿ne w tym miejscu po fladze stop
+    //{
 		m_OpenPort = false;
 #if defined(_WIN32) || defined(_WIN64)
-		//CancelIo(m_ComPort);
+		CancelIo(m_ComPort);
 		CloseHandle(m_ComPort);
 		m_ComPort = NULL;
 #endif
@@ -529,7 +530,7 @@ void CSerial::Stop()
 		//m_ComPort = -1;
 #endif
 	  
-	}
+	//}
 
 #if defined(_WIN32) || defined(_WIN64)
 		WaitForSingleObject(m_ThreadHANDLE,INFINITE);
@@ -645,6 +646,7 @@ void CSerial::Disconnect()
 {
 	
 	CloseHandle(m_ComPort);
+	m_ComPort = NULL;
 #if defined(_LINUX32) || defined(_LINUX64)    
 	flock(m_ComPort,LOCK_UN);
 	//tcsetattr(m_ComPort, TCSANOW, &m_OldPortSettings);
@@ -654,7 +656,6 @@ void CSerial::Disconnect()
 #endif
     m_Connected = false;
     m_OpenPort = false;
-    m_FirstTime = true;
 
 }
 

@@ -28,7 +28,7 @@
 #define PORT_STRING_LENGTH  	16
 
 #define BUFFER				1024
-#define MAX_ZERO_COUNTER 	100
+#define MAX_ZERO_COUNTER 	5
 #define MAX_READ_ERRORS		2
 
 #define RECCONNECT_COUNTER 20
