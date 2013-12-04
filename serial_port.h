@@ -19,19 +19,15 @@
 #include "vector"
 
 
-#define EOL_LENGTH		1
-
-#define NUMBER_OF_PORTS		256
-#define BAUD_LENGTH		6
-
+#define THREAD_SLEEP			20
+#define EOL_LENGTH				1
+#define NUMBER_OF_PORTS			256
+#define BAUD_LENGTH				6
 #define PORT_NAME_LENGTH    	16
 #define PORT_STRING_LENGTH  	16
-
-#define BUFFER				1024
-#define MAX_ZERO_COUNTER 	5
-#define MAX_READ_ERRORS		2
-
-#define RECCONNECT_COUNTER 20
+#define BUFFER					1024
+#define MAX_ZERO_COUNTER 		1000/THREAD_SLEEP
+#define RECCONNECT_COUNTER		3000/THREAD_SLEEP
 
 typedef struct
 {
@@ -111,6 +107,7 @@ class CSerial
 	bool CheckChecksum(const char *nmea_line);
 	void ClearSignals();
 	void ClearSerialBuffer();
+	bool Connect(const char *port, int baud);
 
 public:
 
@@ -122,7 +119,7 @@ public:
 	SPorts GetPortInfo(int id);
 	void ShowError();
 	//int GetDeviceType();
-	bool Connect(const char *port, int baud);
+	bool Connect();
 	void Disconnect();
 	int GetLength();				// buffer length
 	bool GetStop();
@@ -179,7 +176,7 @@ public:
 	virtual void OnAfterMainLoop();
 	virtual void OnBeforeMainLoop();
 	virtual void OnReconnect();
-	virtual void OnNewSignal(); // nowy znaleziony typ danych w sygnale
+	virtual void OnNewSignal(SSignal signal); // nowy znaleziony typ danych w sygnale
 	virtual void OnNoSignal();
 	virtual void OnValidNMEA();
 	virtual void OnInvalidNMEA();

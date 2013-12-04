@@ -20,7 +20,7 @@ void *_LINUXThread(void *Param)
     CSerial *Serial = ((CSerial*)Param);
     Serial->OnBeforeMainLoop();
     Serial->SetWorkingFlag(true);
-	
+	Serial->Connect();
     while (true)
     {
 	
@@ -51,7 +51,7 @@ void *_LINUXThread(void *Param)
 		
 
 #ifdef _WIN32
-        Sleep(50);
+        Sleep(THREAD_SLEEP);
 #endif
 #if defined(_LINUX32) || defined(_LINUX64)
         sleep(1);
@@ -286,7 +286,7 @@ int CSerial::NMEASignal(unsigned char *line)
 		Signal.nmea = (unsigned char*)malloc(strlen((char*)from) + 1);
 		strcpy((char*)Signal.nmea,(char*)from);
 		vSignals.push_back(Signal);
-		OnNewSignal();
+		OnNewSignal(Signal);
 		if(!m_ValidNMEA)
 		{
 		    m_ValidNMEA = true;
@@ -514,8 +514,8 @@ void CSerial::Stop()
     m_Stop = true;
     OnStop();
 
-    //if (m_OpenPort) // wa¿ne w tym miejscu po fladze stop
-    //{
+    if (m_OpenPort) // wa¿ne w tym miejscu po fladze stop
+    {
 		m_OpenPort = false;
 #if defined(_WIN32) || defined(_WIN64)
 		CancelIo(m_ComPort);
@@ -530,7 +530,7 @@ void CSerial::Stop()
 		//m_ComPort = -1;
 #endif
 	  
-	//}
+	}
 
 #if defined(_WIN32) || defined(_WIN64)
 		WaitForSingleObject(m_ThreadHANDLE,INFINITE);
@@ -553,7 +553,7 @@ void CSerial::Stop()
     m_OpenPort = false;
     m_ValidDevice = false;
     m_Errors = 0;
-    m_FirstTime = true;
+    //m_FirstTime = true;
     m_ComPort = NULL;
     m_Baud = BaudRates[0];
     m_ValidNMEA = false;
@@ -581,7 +581,7 @@ void CSerial::Start()
     m_ValidDevice = false;
     m_Errors = 0;
     m_Stop = false;
-    m_FirstTime = true;
+    //m_FirstTime = true;
     m_ComPort = NULL;
     m_ValidNMEA = false;
     m_BufferLength = -1;
@@ -658,21 +658,25 @@ void CSerial::Disconnect()
     m_OpenPort = false;
 
 }
+bool CSerial::Connect()
+{
+	return Connect(m_Port,m_Baud);
+}
 
 bool CSerial::Reconnect()
 {
 	if (m_Stop)
         return false;
-	
-	m_ReconnectCounter++;
-	
-	if(m_ReconnectCounter < RECCONNECT_COUNTER)
-		return false;
-
 	bool con = false;
-	if(!m_FirstTime)
-	    OnReconnect();
 	
+//	if(!m_FirstTime)
+//	{
+		m_ReconnectCounter++;
+	
+		if(m_ReconnectCounter < RECCONNECT_COUNTER)
+			return false;
+		OnReconnect();
+//	}
 #if defined(_WIN32) || defined(_WIN64)
 	//Sleep(100);
 #endif
@@ -691,7 +695,7 @@ bool CSerial::Reconnect()
 	con = Connect(m_Port,m_Baud);
 	m_ReconnectCounter = 0;
 
-    m_FirstTime = false;
+    //m_FirstTime = false;
     return con;
 }
 
@@ -1235,7 +1239,7 @@ void CSerial::OnAfterMainLoop()
 void CSerial::OnReconnect()
 {
 }
-void CSerial::OnNewSignal()
+void CSerial::OnNewSignal(SSignal signal)
 {
 }
 void CSerial::OnNoSignal()
