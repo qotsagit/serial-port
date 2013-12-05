@@ -38,15 +38,15 @@ typedef struct
 
 typedef struct 
 {
-	unsigned char *name;
-	unsigned char *nmea;
+	char *name;
+	char *nmea;
 	int count;
 
 }SSignal;
 
 class CSerial
 {
-	unsigned char *m_SerialBuffer;//[BUFFER];
+	char *m_SerialBuffer;//[BUFFER];
 #if defined(_WIN32) || defined(_WIN64)
 	static DWORD WINAPI _W32Thread(void *Param);
 	HANDLE m_ComPort;
@@ -65,7 +65,7 @@ class CSerial
 	bool m_CheckCRC;
 	int m_BadCrc,m_LinesCount,m_LinesWritten;
 	int m_EOLen;
-	unsigned char *m_LineBuffer;
+	char *m_LineBuffer;
 	char *m_OldLineBuffer;
 	int m_OldLineLength;
 //	unsigned char _LineBuffer[BUFFER_LENGTH];
@@ -91,8 +91,8 @@ class CSerial
 	void StartThread();
 	void OpenPort(const char*, int);
 #if defined(_WIN32) || defined(_WIN64)
-	int ReadPort(HANDLE port, unsigned char *, int);
-	int WritePort(HANDLE port,unsigned char *buf, int size);
+	int ReadPort(HANDLE port, char *, int);
+	int WritePort(HANDLE port, char *buf, int size);
 #endif
 
 #if defined(_LINUX32) || defined(_LINUX64)
@@ -100,9 +100,9 @@ class CSerial
 	int WritePort(int port,unsigned char *buf, int size);
 #endif
 
-	void FoldLine( unsigned char *Buffer, int BufferLength );
+	void FoldLine(  char *Buffer, int BufferLength );
 	void PharseLine( char *_Data, int _DataLen );
-	int NMEASignal(unsigned char *Line);
+	int NMEASignal( char *Line);
 	void ClearLineBuffer(void);
 	bool CheckChecksum(const char *nmea_line);
 	void ClearSignals();
@@ -124,7 +124,7 @@ public:
 	int GetLength();				// buffer length
 	bool GetStop();
 	int GetBaudRate();
-	unsigned char *GetBuffer();
+	 char *GetBuffer();
 	bool IsConnected();
 	void SetIsConnected(bool val);
 	void ResetErrors();				
@@ -145,7 +145,7 @@ public:
 	void Stop();					// set stop flag
 	void Start();					// starts the connect thread
 	int Read();
-	int Write(unsigned char *buffer, int length);
+	int Write(char *buffer, int length);
 	void SetLength(int size);
 	bool Reconnect();
     //void SetNumberOfPorts(int val);
@@ -167,10 +167,10 @@ public:
 	virtual void OnConnect();
 	virtual void OnConnected();
 	virtual void OnDisconnect();
-	virtual void OnData(unsigned char *buffer, int length);
+	virtual void OnData(char *buffer, int length);
 	virtual void OnExit();
-	virtual void OnLine(unsigned char *buffer, int length);
-	virtual void OnNMEALine(unsigned char *buffer, int length);
+	virtual void OnLine(char *buffer, int length);
+	virtual void OnNMEALine(char *buffer, int length);
 	virtual void OnStop();			// stop pressed or stopped
 	virtual void OnStart();			// start
 	virtual void OnAfterMainLoop();
