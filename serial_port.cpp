@@ -80,7 +80,7 @@ CSerial::CSerial()
 	m_PharseLine = false;
 	m_SerialBuffer = (char*)malloc(BUFFER);
 	m_ComPort = NULL;
-	
+	m_Connected = false;
 }
 
 CSerial::~CSerial()
@@ -363,7 +363,7 @@ void CSerial::ScanPorts()
         wsprintf(port_name,L"\\\\.\\COM%d",port_number);
         //Try to open the port
         bool bSuccess = false;
-		fwprintf(stderr,L"opening port %s\n",port_name);
+		//fwprintf(stderr,L"opening port %s\n",port_name);
         HANDLE hPort = CreateFile(port_name, GENERIC_READ , NULL, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
         if (hPort == INVALID_HANDLE_VALUE)
         {
@@ -553,12 +553,9 @@ void CSerial::Stop()
     m_OpenPort = false;
     m_ValidDevice = false;
     m_Errors = 0;
-    //m_FirstTime = true;
     m_ComPort = NULL;
-    m_Baud = BaudRates[0];
     m_ValidNMEA = false;
     m_BufferLength = -1;
-    //m_Writer = false;
     vPorts.clear();
 	ClearLineBuffer();
 }
