@@ -7,7 +7,8 @@
 #include <errno.h>
 #endif
 
-int BaudRates[BAUD_LENGTH] = {4800,9600,19200,38400,57600,115200};
+int BaudRates[BAUD_LENGTH] = {2400,4800,9600,19200,38400,57600,115200};
+
 #ifdef _WIN32
 DWORD WINAPI CSerial::_W32Thread(void *Param)
 #endif
@@ -32,6 +33,7 @@ void *_LINUXThread(void *Param)
 			    
 			if(!Serial->GetWriter())   // reader mode
 			{
+				
 	    		RetCode = Serial->Read();
 	    		Serial->SetLength(RetCode);
 
@@ -81,6 +83,8 @@ CSerial::CSerial()
 	m_SerialBuffer = (char*)malloc(BUFFER);
 	m_ComPort = NULL;
 	m_Connected = false;
+	m_NoNewSignalCounter = 0;
+	m_NoNewSignal = false;
 }
 
 CSerial::~CSerial()
@@ -88,6 +92,7 @@ CSerial::~CSerial()
     m_Stop = true;
     m_Connected = false;
     vPorts.clear();
+	ClearTalkers();
     ClearSignals();
     ClearLineBuffer();
 	ClearSerialBuffer();
@@ -143,6 +148,17 @@ void CSerial::ClearSignals()
 	vSignals.clear();
 }
 
+void CSerial::ClearTalkers()
+{
+	for(size_t i = 0; i < vTalkers.size(); i++)
+	{
+		free(vTalkers[i].talker);
+		
+	}
+	
+	vTalkers.clear();
+}
+
 void CSerial::PharseLine( char *_Data, int _DataLen )
 {
 
@@ -158,22 +174,22 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
 	if( memcmp(DataPtr, "\n", 1) == 0)
     {
 
-			Len = i - Start;
-            Len = Len + 1;
+		Len = i - Start;
+		Len = Len + 1;
 		if( m_OldLineLength == 0 )
-        {
-				m_LineBuffer = (char*)malloc(Len + 1);
-                memset(m_LineBuffer,0,Len + 1);
-                memcpy(m_LineBuffer, (_Data + Start ), Len);
+		{
+			m_LineBuffer = (char*)malloc(Len + 1);
+			memset(m_LineBuffer,0,Len + 1);
+            memcpy(m_LineBuffer, (_Data + Start ), Len);
 
-            }else{
+		}else{
 
-				m_LineBuffer = (char*)malloc(m_OldLineLength + Len + 1);
-                memset(m_LineBuffer,0,m_OldLineLength + Len + 1);
-                memcpy(m_LineBuffer, m_OldLineBuffer, m_OldLineLength);
-                memcpy((m_LineBuffer + m_OldLineLength), (_Data + Start ), Len);
-				ClearLineBuffer();
-            }
+			m_LineBuffer = (char*)malloc(m_OldLineLength + Len + 1);
+            memset(m_LineBuffer,0,m_OldLineLength + Len + 1);
+            memcpy(m_LineBuffer, m_OldLineBuffer, m_OldLineLength);
+            memcpy((m_LineBuffer + m_OldLineLength), (_Data + Start ), Len);
+			ClearLineBuffer();
+       }
 
 		valid_nmea = NMEASignal((char*)m_LineBuffer);
 		if(valid_nmea == 0)
@@ -183,16 +199,15 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
 		if(valid_nmea == 2)
 			OnBadCRC();	
 
-	    OnLine((char*)m_LineBuffer, strlen((const char*)m_LineBuffer));
+		OnLine((char*)m_LineBuffer, strlen((const char*)m_LineBuffer));
 	    
-	    free(m_LineBuffer);
+		free(m_LineBuffer);
 		m_LineBuffer = NULL;
+		DataPtr += m_EOLen;
+		i += m_EOLen;
+		Start += (Len + m_EOLen) - 1;
 
-	    DataPtr += m_EOLen;
-	    i += m_EOLen;
-	    Start += (Len + m_EOLen) - 1;
-
-        }else{
+	}else{
 
             DataPtr++;
             i++;
@@ -203,13 +218,15 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
 
     if( Start < _DataLen )          // bufor niedociętych linii
     {
-	Len = _DataLen - Start;
-	m_OldLineBuffer = (char*)realloc(m_OldLineBuffer, Len + m_OldLineLength);
-	memcpy(m_OldLineBuffer, m_OldLineBuffer, m_OldLineLength);
-	memcpy((m_OldLineBuffer + m_OldLineLength), (_Data + Start ), Len);
-	m_OldLineLength += Len;
+		Len = _DataLen - Start;
+		m_OldLineBuffer = (char*)realloc(m_OldLineBuffer, Len + m_OldLineLength);
+		memcpy(m_OldLineBuffer, m_OldLineBuffer, m_OldLineLength);
+		memcpy((m_OldLineBuffer + m_OldLineLength), (_Data + Start ), Len);
+		m_OldLineLength += Len;
     }
-    
+	fprintf(stdout,"old line lenght: %d\n",m_OldLineLength);
+    if(m_OldLineLength > 128) // hardcoded here
+		OnInvalidNMEA();
    
 //    if(valid_plain_text)
 //	OnValidPlainText();
@@ -227,10 +244,10 @@ int CSerial::NMEASignal(char *line)
 		m_BadCrc++;
 		if(m_CheckCRC)
 		    return 2;
-		//fprintf(stderr,"Bad crc %d %s\n",m_BadCrc,line);
 	}
 
 	char *from = NULL;
+	char *old_from = NULL;
 	char *from1 = (char*)memchr(line,'!',strlen((char*)line));
 	if(from1 != NULL)
 		from = from1;
@@ -247,23 +264,71 @@ int CSerial::NMEASignal(char *line)
 		return 1;
 	
 	if(from > to)
-	{
-	    //fprintf(stderr,"FROM:%s\n",from);
-	    //fprintf(stderr,"To:%s\n",to);
-	    //fprintf(stderr,"ERROR\n");
-	    return 1;
-	}    
+		return 1; 
 
+	m_ValidNMEA = true;
 	OnNMEALine(from,strlen((const char*)from));
+	old_from = from;
+
+	AddTalker(from);
+	AddSignal(from, to);
 	
+	if(m_ValidNMEA)
+		return 0;
+	else
+		return 1;
+
+}
+
+
+void CSerial::AddTalker(char *data)
+{
+	char *from = data;
+	from = from + (1 * sizeof(char));
+	char *buf = (char*)malloc( TALKER_LENGTH + 1 );
+	memset(buf,0,TALKER_LENGTH + 1);
+	memcpy(buf,from, TALKER_LENGTH);
+	bool add = true;
+	
+	if(vTalkers.size() !=0)
+	{	
+		for( int i = 0; i < vTalkers.size();i++)
+		{	
+			if( memcmp(vTalkers[i].talker,buf,TALKER_LENGTH + 1) == 0)
+			{
+				add = false;
+				break;
+			}
+		}
+	}
+
+	if(add)
+	{	
+		m_TalkerCounter = MAX_TALKER_COUNTER;
+		STalker Talker;
+		Talker.talker = buf;
+		vTalkers.push_back(Talker);
+		OnNewTalker(Talker);
+	
+	}else{
+
+		m_TalkerCounter--;
+		if(m_TalkerCounter <= 0 )
+			OnNoNewTalker();
+		free(buf);
+
+	}
+}
+
+void CSerial::AddSignal(char *data, char *to)
+{
+	char *from = data;
 	from = from + (3 * sizeof(char));
 	char *buf = (char*)malloc( to - from + 1 );
 	memset(buf,0,to - from + 1);
 	memcpy(buf,from, to - from);
 	bool add = true;
 	
-	m_ValidNMEA = true;
-
 	if(vSignals.size() != 0)
 	{
 		for( int i = 0; i < vSignals.size();i++)
@@ -287,24 +352,13 @@ int CSerial::NMEASignal(char *line)
 		strcpy((char*)Signal.nmea,(char*)from);
 		vSignals.push_back(Signal);
 		OnNewSignal(Signal);
-		if(!m_ValidNMEA)
-		{
-		    m_ValidNMEA = true;
-
-		}    
-		
+				
 	}else{
-	
+		
 		free(buf);
 	}
-	
-	if(m_ValidNMEA)
-	    return 0;
-	else
-	    return 1;
 
 }
-
 //bool CSerial::ValidPlainText(const char *line)
 //{
     
@@ -509,7 +563,7 @@ bool CSerial::GetStop()
     return m_Stop;
 }
 
-void CSerial::Stop()
+void CSerial::Stop(bool wait)
 {
     m_Stop = true;
     OnStop();
@@ -533,6 +587,7 @@ void CSerial::Stop()
 	}
 
 #if defined(_WIN32) || defined(_WIN64)
+	if(wait)
 		WaitForSingleObject(m_ThreadHANDLE,INFINITE);
 #endif
 #if defined(_LINUX32) || defined(_LINUX64)
@@ -541,8 +596,7 @@ void CSerial::Stop()
      
    // }
 
-    ClearSignals();
-
+    
     m_BadCrc = 0;
     m_LinesCount = 0;
     m_OldLineLength = 0;
@@ -556,6 +610,7 @@ void CSerial::Stop()
     m_ComPort = NULL;
     m_ValidNMEA = false;
     m_BufferLength = -1;
+	m_NoNewSignal = false;
     vPorts.clear();
 	ClearLineBuffer();
 }
@@ -583,8 +638,10 @@ void CSerial::Start()
     m_ValidNMEA = false;
     m_BufferLength = -1;
     vPorts.clear();
-
-    OnStart();
+	ClearSignals();
+	ClearTalkers();
+    
+	OnStart();
 
     StartThread();
 
@@ -641,8 +698,8 @@ bool CSerial::Connect(const char *port, int baud_rate)
 }
 void CSerial::Disconnect()
 {
-	
-	CloseHandle(m_ComPort);
+	if(m_ComPort)
+		CloseHandle(m_ComPort);
 	m_ComPort = NULL;
 #if defined(_LINUX32) || defined(_LINUX64)    
 	flock(m_ComPort,LOCK_UN);
@@ -718,6 +775,15 @@ void CSerial::SetIsConnected(bool val)
      m_Connected = false;
 }
 
+size_t CSerial::GetTalkerCount()
+{
+	return vTalkers.size();
+}
+
+char *CSerial::GetTalker(size_t id)
+{
+	return vTalkers[id].talker;
+}
 
 size_t CSerial::GetSignalCount()
 {
@@ -752,7 +818,7 @@ int CSerial::Read()
 #endif
     
 	m_BufferLength = ReadPort(m_ComPort,m_SerialBuffer,BUFFER);
-
+	
     if(m_BufferLength == 0)
     	m_EmptyCount++;
     else
@@ -1251,6 +1317,16 @@ void CSerial::OnInvalidNMEA()
 void CSerial::OnBadCRC()
 {
 }
+void CSerial::OnNewTalker(STalker talker)
+{
+
+}
+void CSerial::OnNoNewTalker()
+{
+
+}
+
+
 //void CSerial::OnInvalidPlainText()
 //{
 //}

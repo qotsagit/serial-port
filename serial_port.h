@@ -22,12 +22,14 @@
 #define THREAD_SLEEP			20
 #define EOL_LENGTH				1
 #define NUMBER_OF_PORTS			256
-#define BAUD_LENGTH				6
+#define BAUD_LENGTH				7
 #define PORT_NAME_LENGTH    	16
 #define PORT_STRING_LENGTH  	16
 #define BUFFER					1024
 #define MAX_ZERO_COUNTER 		1000/THREAD_SLEEP
 #define RECCONNECT_COUNTER		3000/THREAD_SLEEP
+#define TALKER_LENGTH			2
+#define MAX_TALKER_COUNTER		50			// przez 50 lini brak nowego talkera wtedy OnNoNewTalker
 
 typedef struct
 {
@@ -43,6 +45,14 @@ typedef struct
 	int count;
 
 }SSignal;
+
+typedef struct 
+{
+	char *talker;
+
+}STalker;
+
+
 
 class CSerial
 {
@@ -61,7 +71,10 @@ class CSerial
 	std::vector <SPorts> vPorts;
 	std::vector <SPorts>::iterator itvPorts;
 	std::vector <SSignal> vSignals;				//sygnaly NMEA
+
+	std::vector <STalker> vTalkers;
 		
+	int m_NoNewSignalCounter;
 	bool m_CheckCRC;
 	int m_BadCrc,m_LinesCount,m_LinesWritten;
 	int m_EOLen;
@@ -87,6 +100,8 @@ class CSerial
 	bool m_Writer;
 	int m_ReconnectCounter;
 	bool m_PharseLine;
+	bool m_NoNewSignal;
+	int m_TalkerCounter;
 
 	void StartThread();
 	void OpenPort(const char*, int);
@@ -108,6 +123,8 @@ class CSerial
 	void ClearSignals();
 	void ClearSerialBuffer();
 	bool Connect(const char *port, int baud);
+	void AddSignal(char *data, char *to);
+	void AddTalker(char *data);
 
 public:
 
@@ -142,7 +159,7 @@ public:
 #endif
 
 	std::vector <SPorts>GetPorts();
-	void Stop();					// set stop flag
+	void Stop(bool wait = true);					// set stop flag
 	void Start();					// starts the connect thread
 	int Read();
 	int Write(char *buffer, int length);
@@ -162,8 +179,10 @@ public:
 	bool GetWriter();
 	int GetLinesWriten();
 	void SetParseLine(bool value);
-
-				
+	void ClearTalkers();
+	size_t GetTalkerCount();
+	char *GetTalker(size_t id);
+					
 	virtual void OnConnect();
 	virtual void OnConnected();
 	virtual void OnDisconnect();
@@ -181,6 +200,9 @@ public:
 	virtual void OnValidNMEA();
 	virtual void OnInvalidNMEA();
 	virtual void OnBadCRC();
+	virtual void OnNewTalker(STalker talker);
+	virtual void OnNoNewTalker();
+
 };
 
 #endif
