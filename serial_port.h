@@ -26,10 +26,10 @@
 #define PORT_NAME_LENGTH    	16
 #define PORT_STRING_LENGTH  	16
 #define BUFFER					1024
-#define MAX_ZERO_COUNTER 		1000/THREAD_SLEEP
-#define RECCONNECT_COUNTER		3000/THREAD_SLEEP
+#define _MAX_ZERO_COUNTER 		1000/THREAD_SLEEP
+#define RECCONNECT_COUNTER		2000/THREAD_SLEEP
 #define TALKER_LENGTH			2
-#define MAX_TALKER_COUNTER		50			// przez 50 lini brak nowego talkera wtedy OnNoNewTalker
+#define MAX_TALKER_COUNTER		20			// przez 50 lini brak nowego talkera wtedy OnNoNewTalker
 
 typedef struct
 {
@@ -73,7 +73,8 @@ class CSerial
 	std::vector <SSignal> vSignals;				//sygnaly NMEA
 
 	std::vector <STalker> vTalkers;
-		
+	
+	size_t m_LineBufferLength;
 	int m_NoNewSignalCounter;
 	bool m_CheckCRC;
 	int m_BadCrc,m_LinesCount,m_LinesWritten;
@@ -182,6 +183,8 @@ public:
 	void ClearTalkers();
 	size_t GetTalkerCount();
 	char *GetTalker(size_t id);
+	char *GetLineBuffer();
+	size_t GetLineBufferLength();
 					
 	virtual void OnConnect();
 	virtual void OnConnected();

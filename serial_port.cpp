@@ -85,6 +85,7 @@ CSerial::CSerial()
 	m_Connected = false;
 	m_NoNewSignalCounter = 0;
 	m_NoNewSignal = false;
+	m_LineBufferLength = 0;
 }
 
 CSerial::~CSerial()
@@ -112,6 +113,17 @@ bool CSerial::GetWriter()
 {
 	return m_Writer;
 }
+
+char *CSerial::GetLineBuffer()
+{
+	return m_LineBuffer;
+}
+
+size_t CSerial::GetLineBufferLength()
+{
+	return m_LineBufferLength;
+}
+
 
 size_t CSerial::GetLinesCount()
 {
@@ -199,7 +211,8 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
 		if(valid_nmea == 2)
 			OnBadCRC();	
 
-		OnLine((char*)m_LineBuffer, strlen((const char*)m_LineBuffer));
+		m_LineBufferLength = strlen((const char*)m_LineBuffer);
+		OnLine((char*)m_LineBuffer, m_LineBufferLength);
 	    
 		free(m_LineBuffer);
 		m_LineBuffer = NULL;
@@ -224,7 +237,7 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
 		memcpy((m_OldLineBuffer + m_OldLineLength), (_Data + Start ), Len);
 		m_OldLineLength += Len;
     }
-	fprintf(stdout,"old line lenght: %d\n",m_OldLineLength);
+	//fprintf(stdout,"old line lenght: %d\n",m_OldLineLength);
     if(m_OldLineLength > 128) // hardcoded here
 		OnInvalidNMEA();
    
@@ -824,7 +837,7 @@ int CSerial::Read()
     else
     	m_EmptyCount = 0;
 
-    if(m_EmptyCount >= MAX_ZERO_COUNTER)
+    if(m_EmptyCount >= _MAX_ZERO_COUNTER)
     {
 		OnNoSignal();
 		m_EmptyCount = 0;
