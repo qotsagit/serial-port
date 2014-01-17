@@ -585,7 +585,9 @@ void CSerial::Stop(bool wait)
     {
 		m_OpenPort = false;
 #if defined(_WIN32) || defined(_WIN64)
-		CancelIo(m_ComPort);
+		LPDWORD lpErrors = 0;
+		//CancelIo(m_ComPort);
+		ClearCommError(m_ComPort,lpErrors,NULL);
 		CloseHandle(m_ComPort);
 		m_ComPort = NULL;
 #endif
@@ -1115,6 +1117,7 @@ void CSerial::OpenPort(const char *port, int baudrate)
 	sprintf(port_string,"\\\\.\\%s",port);
     //m_ComPort = CreateFileA(port_string, GENERIC_READ|GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
 	m_ComPort = CreateFileA(port_string, GENERIC_READ|GENERIC_WRITE, 0, 0, OPEN_EXISTING, 0, 0);
+
 	free(port_string);
     
 	if(m_ComPort == INVALID_HANDLE_VALUE)
@@ -1178,9 +1181,10 @@ int CSerial::ReadPort(HANDLE port,char *buf, int size)
 		
 	return nBytesRead;
 }
-/*
 
-int CSerial::ReadPort(HANDLE port,unsigned char *buf, int size)
+
+/*
+int CSerial::ReadPort(HANDLE port, char *buf, int size)
 {
 	
     int nBytesRead = 0;
@@ -1256,10 +1260,56 @@ int CSerial::ReadPort(HANDLE port,unsigned char *buf, int size)
 }
 */
 
+/*
+int CSerial::WritePort(HANDLE port,char *buf, int size)
+{
+	int n = -1;
+    if(port == INVALID_HANDLE_VALUE)
+		return -1;
 
+	OVERLAPPED o;
+	o.hEvent = CreateEvent(
+                   NULL,   // default security attributes
+                   TRUE,   // manual-reset event
+                   FALSE,  // not signaled
+                   NULL    // no name
+               );
+
+	if(o.hEvent == NULL)
+		return 0;
+    
+	// Initialize the rest of the OVERLAPPED structure to zero.
+    o.Internal = 0;
+    o.InternalHigh = 0;
+    o.Offset = 0;
+    o.OffsetHigh = 0;
+	o.Pointer = 0;
+
+	BOOL bResult = WriteFile(port, buf, size, (LPDWORD)((void *)&n), &o);
+	
+	if(bResult)
+	{
+			CloseHandle(o.hEvent);
+			return n;
+	}else{
+		
+		DWORD lError = GetLastError();
+				
+		if (lError != ERROR_IO_PENDING)
+			n = 0;
+
+		GetOverlappedResult(port,&o,(LPDWORD)&n,FALSE);
+	}
+	
+	//CancelIo(port);
+	
+	return n;
+}
+*/
 
 int CSerial::WritePort(HANDLE port,char *buf, int size)
 {
+	//return -1;
     int n = -1;
     if(port == INVALID_HANDLE_VALUE)
 		return -1;
@@ -1272,8 +1322,6 @@ int CSerial::WritePort(HANDLE port,char *buf, int size)
 	
 	return n;
 }
-
-
 #endif
 
 // virtual methods
