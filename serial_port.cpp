@@ -80,7 +80,7 @@ CSerial::CSerial()
 	m_LineBuffer = NULL;
 	m_ReconnectCounter = 0;
 	m_PharseLine = false;
-	m_SerialBuffer = (char*)malloc(BUFFER);
+	//m_SerialBuffer = (char*)malloc(BUFFER);
 	m_ComPort = NULL;
 	m_Connected = false;
 	m_NoNewSignalCounter = 0;
@@ -96,7 +96,6 @@ CSerial::~CSerial()
 	ClearTalkers();
     ClearSignals();
     ClearLineBuffer();
-	ClearSerialBuffer();
 }
 
 void CSerial::SetParseLine(bool value)
@@ -395,11 +394,6 @@ bool CSerial::CheckChecksum(const char *nmea_line) {
 	else
 	    return false;
  
-}
-
-void CSerial::ClearSerialBuffer()
-{
-	free(m_SerialBuffer);
 }
 
 void CSerial::ClearLineBuffer(void)
@@ -815,7 +809,7 @@ int CSerial::Read()
     struct timeval tv;
     int retval;
     m_ValidNMEA = false;
-    memset(m_SerialBuffer,0,BUFFER);
+    memset(m_SerialBuffer,0,BUFFER_LENGTH);
 #if defined(_LINUX32) || defined(_LINUX64)
 	fd_set rfds;
     FD_ZERO(&rfds);
@@ -832,7 +826,7 @@ int CSerial::Read()
     }
 #endif
     
-	m_BufferLength = ReadPort(m_ComPort,m_SerialBuffer,BUFFER);
+	m_BufferLength = ReadPort(m_ComPort,m_SerialBuffer,BUFFER_LENGTH);
 	
     if(m_BufferLength == 0)
     	m_EmptyCount++;

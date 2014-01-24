@@ -25,9 +25,9 @@
 #define BAUD_LENGTH				7
 #define PORT_NAME_LENGTH    	16
 #define PORT_STRING_LENGTH  	16
-#define BUFFER					1024
+#define BUFFER_LENGTH			512
 #define _MAX_ZERO_COUNTER 		1000/THREAD_SLEEP
-#define RECCONNECT_COUNTER		2000/THREAD_SLEEP
+#define RECCONNECT_COUNTER		5000/THREAD_SLEEP
 #define TALKER_LENGTH			2
 #define MAX_TALKER_COUNTER		20			// przez 50 lini brak nowego talkera wtedy OnNoNewTalker
 
@@ -56,7 +56,7 @@ typedef struct
 
 class CSerial
 {
-	char *m_SerialBuffer;//[BUFFER];
+	char m_SerialBuffer[BUFFER_LENGTH];
 #if defined(_WIN32) || defined(_WIN64)
 	static DWORD WINAPI _W32Thread(void *Param);
 	HANDLE m_ComPort;
@@ -122,7 +122,6 @@ class CSerial
 	void ClearLineBuffer(void);
 	bool CheckChecksum(const char *nmea_line);
 	void ClearSignals();
-	void ClearSerialBuffer();
 	bool Connect(const char *port, int baud);
 	void AddSignal(char *data, char *to);
 	void AddTalker(char *data);
