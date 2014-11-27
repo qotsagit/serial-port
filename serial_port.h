@@ -47,11 +47,16 @@ typedef struct
 class CSerial
 {
 	unsigned char m_SerialBuffer[BUFFER + 1];
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
 	static DWORD WINAPI _W32Thread(void *Param);
+	HANDLE m_ComPort;
+	DWORD threadID;
+	HANDLE m_ThreadHANDLE;
 #endif
 
-	HANDLE m_ComPort;
+#if defined(_LINUX32) || defined(_LINUX64)
+	int m_ComPort;
+#endif
 	std::vector <SPorts> vPorts;
 	std::vector <SPorts>::iterator itvPorts;
 	std::vector <SSignal> vSignals;				//sygnaly NMEA
@@ -77,16 +82,16 @@ class CSerial
 	bool m_ValidDevice;
 	bool m_Working;
 	bool m_FirstTime;
-	DWORD threadID;
-
-#if defined(_WIN32) || defined(_WIN64)
-	HANDLE m_ThreadHANDLE;
-#endif
-	
 	
 	void StartThread();
 	void OpenPort(const char*, int);
+#if defined(_WIN32) || defined(_WIN64)
 	int ReadPort(HANDLE port, unsigned char *, int);
+#endif
+
+#if defined(_LINUX32) || defined(_LINUX64)
+	int ReadPort(int port,unsigned char *buf, int size);
+#endif
 	void FoldLine( unsigned char *Buffer, int BufferLength );
 	void PharseLine( char *_Data, int _DataLen );
 	void NMEASignal(unsigned char *Line);
@@ -118,7 +123,7 @@ public:
 	const char *GetPortName();            // nazwa portu
 	void ScanPorts();
 #if defined(_LINUX32) || defined(_LINUX64)
-	bool Scan(char port_name[PORT_NAME_LENGTH]);
+	bool Scan(char *port_name);
 #endif
 #if defined(_WIN32) || defined(_WIN64)
 	HANDLE GetHandle();
