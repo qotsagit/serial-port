@@ -209,7 +209,7 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
 			OnInvalidNMEA();
 		if(valid_nmea == 2)
 			OnBadCRC();	
-
+		
 		m_LineBufferLength = strlen((const char*)m_LineBuffer);
 		OnLine((char*)m_LineBuffer, m_LineBufferLength);
 	    
@@ -421,7 +421,7 @@ void CSerial::ScanPorts()
         //Form the Raw device name
         wchar_t port_name[32];
 		//printf("checking port COM%d\n",port_number);
-        wsprintf(port_name,L"\\\\.\\COM%d",port_number);
+        swprintf(port_name,L"\\\\.\\COM%d",port_number);
         //Try to open the port
         bool bSuccess = false;
 		//fwprintf(stderr,L"opening port %s\n",port_name);
@@ -666,6 +666,11 @@ void CSerial::SetWorkingFlag(bool work)
     m_Working = work;
 }
 
+void CSerial::SetStop(bool v)
+{
+	m_Stop = v;
+}
+
 const char *CSerial::GetPortName()
 {
 	return m_Port;
@@ -837,10 +842,11 @@ int CSerial::Read()
     {
 		OnNoSignal();
 		m_EmptyCount = 0;
-		Disconnect();
+		//Disconnect();
     }
 	
-    if(m_BufferLength > 0)
+
+	if(m_BufferLength > 0)
     {
 		if(m_PharseLine)
     		PharseLine((char*)m_SerialBuffer,m_BufferLength);
@@ -986,7 +992,7 @@ void CSerial::OpenPort(const char *port, int baudrate)
     port_settings.c_oflag = 0;
     port_settings.c_cc[VMIN] = 128;      /* block untill n bytes are received */
     port_settings.c_cc[VTIME] =  0;     /* block untill a timer expires (n * 100 mSec.) */
-    error = tcsetattr(m_ComPort, TCSANOW, &port_settings);
+    //error = tcsetattr(m_ComPort, TCSANOW, &port_settings);
 
     if(error==-1)
     {
@@ -1072,7 +1078,7 @@ TIOCM_DSR DSR (data set ready)
 
 void CSerial::OpenPort(const char *port, int baudrate)
 {
-	
+	/*
 	char baudr[64];
 	
 	switch(baudrate)
@@ -1104,6 +1110,7 @@ void CSerial::OpenPort(const char *port, int baudrate)
 		return;
         break;
     }
+	*/
 	int len = strlen(port) + 1 + 7;
 	char *port_string = (char*)malloc(len);
 	memset(port_string,0,len);
@@ -1121,16 +1128,24 @@ void CSerial::OpenPort(const char *port, int baudrate)
     }
 		
     DCB port_settings;
-    memset(&port_settings, 0, sizeof(port_settings));  /* clear the new struct  */
-    port_settings.DCBlength = sizeof(port_settings);
-
-    if(!BuildCommDCBA(baudr, &port_settings))
-    {
-        CloseHandle(m_ComPort);
+    //memset(&port_settings, 0, sizeof(port_settings));  /* clear the new struct  */
+    //port_settings.DCBlength = sizeof(port_settings);
+	
+	if(!GetCommState(m_ComPort,&port_settings))
+	{
+	    CloseHandle(m_ComPort);
 		m_ComPort = NULL;
 		return;
-    }
+	}
+
+    //if(!BuildCommDCBA(baudr, &port_settings))
+    //{
+        //CloseHandle(m_ComPort);
+		//m_ComPort = NULL;
+		//return;
+    //}
 	
+	port_settings.BaudRate = baudrate;
     if(!SetCommState(m_ComPort, &port_settings))
     {
         CloseHandle(m_ComPort);
@@ -1140,9 +1155,9 @@ void CSerial::OpenPort(const char *port, int baudrate)
 	
     COMMTIMEOUTS Cptimeouts;
 
-    Cptimeouts.ReadIntervalTimeout         = MAXDWORD;
+	Cptimeouts.ReadIntervalTimeout         = MAXDWORD;
     Cptimeouts.ReadTotalTimeoutMultiplier  = 0;
-    Cptimeouts.ReadTotalTimeoutConstant    = 0;
+	Cptimeouts.ReadTotalTimeoutConstant    = 0;
     Cptimeouts.WriteTotalTimeoutMultiplier = 0;
     Cptimeouts.WriteTotalTimeoutConstant   = 0;
 
@@ -1165,15 +1180,30 @@ int CSerial::ReadPort(HANDLE port,char *buf, int size)
 	int nBytesRead = 0;
 	if(size > 4096)  
 		size = 4096;
-	    
-	BOOL bResult = ReadFile(port, buf, size, (LPDWORD)&nBytesRead, NULL);
-		
-	if(bResult)
-		return nBytesRead;
-	else
-		nBytesRead = 0;
-		
-	return nBytesRead;
+	
+	int t = GetTickCount();
+	int timeout = 100;
+	BOOL bResult;
+	COMSTAT status;
+	DWORD errors;
+	memset(m_SerialBuffer,0,BUFFER_LENGTH);
+	
+	ClearCommError(port, &errors, &status);
+
+	//Check if there is something to read
+	if (status.cbInQue > 0)
+	{
+		while(GetTickCount() - t  < timeout)
+		{
+			bResult = ReadFile(port, buf, size, (LPDWORD)&nBytesRead, NULL);
+			if(bResult)
+				return nBytesRead;
+			else
+				nBytesRead = 0;
+		}
+	}	
+	
+	return -1;
 }
 
 

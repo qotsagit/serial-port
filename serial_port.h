@@ -25,8 +25,8 @@
 #define BAUD_LENGTH				7
 #define PORT_NAME_LENGTH    	16
 #define PORT_STRING_LENGTH  	16
-#define BUFFER_LENGTH			512
-#define _MAX_ZERO_COUNTER 		1000/THREAD_SLEEP
+#define BUFFER_LENGTH			1024
+#define _MAX_ZERO_COUNTER 		3000/THREAD_SLEEP
 #define RECCONNECT_COUNTER		5000/THREAD_SLEEP
 #define TALKER_LENGTH			2
 #define MAX_TALKER_COUNTER		20			// przez 50 lini brak nowego talkera wtedy OnNoNewTalker
@@ -184,6 +184,7 @@ public:
 	char *GetTalker(size_t id);
 	char *GetLineBuffer();
 	size_t GetLineBufferLength();
+	void SetStop(bool v);
 					
 	virtual void OnConnect();
 	virtual void OnConnected();
