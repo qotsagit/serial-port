@@ -7,7 +7,8 @@
 #include <errno.h>
 #endif
 
-int BaudRates[BAUD_LENGTH] = {4800,9600,19200,38400,57600,115200,230400 };
+int BaudRates[BAUD_LENGTH] = {2400,4800,9600,19200,38400,57600,115200};
+
 #ifdef _WIN32
 DWORD WINAPI CSerial::_W32Thread(void *Param)
 #endif
@@ -20,44 +21,48 @@ void *_LINUXThread(void *Param)
     CSerial *Serial = ((CSerial*)Param);
     Serial->OnBeforeMainLoop();
     Serial->SetWorkingFlag(true);
+	Serial->Connect();
     while (true)
     {
-
+	
         if (Serial->GetStop())
             break;
-
-
+		
         if (Serial->IsConnected())
         {
-            RetCode = Serial->Read();
-            Serial->SetLength(RetCode);
+			    
+			if(!Serial->GetWriter())   // reader mode
+			{
+				
+	    		RetCode = Serial->Read();
+	    		Serial->SetLength(RetCode);
 
-            if (RetCode > -1) // all ok
-            {
-                Serial->SetnErrors(0);
-            
-			}else{
-                
-				Serial->Reconnect();
-            }
+	    		if (RetCode > -1)
+	    		{ 
+					Serial->ResetErrors();
+        		}else{
+        			Serial->SetIsConnected(false);
+				}
 
-        }else{
-            
-			Serial->Reconnect();
+			}
 			
-        }
-
+		}else{
+		
+			Serial->Reconnect();
+		}
+		
 
 #ifdef _WIN32
-     //   Sleep(50);
+        Sleep(THREAD_SLEEP);
 #endif
 #if defined(_LINUX32) || defined(_LINUX64)
         sleep(1);
 #endif
 
     }
+    
     Serial->OnAfterMainLoop();
-	Serial->SetWorkingFlag(false);
+    Serial->SetWorkingFlag(false);
     
 
 return 0;
@@ -66,45 +71,59 @@ return 0;
 
 CSerial::CSerial()
 {
-    m_BadCrc = 0;
-    m_LinesCount = 0;
-    m_OldLineBuffer = NULL;
-    m_OldLineLength = 0;
-    m_EOLen = EOL_LENGTH;
-    m_emptyCount = 0;
-    m_Connected = false;
-    m_NumberOfPorts = -1;
-    m_OpenPort = false;
-    m_Working = false;
-    m_ValidDevice = false;
-    m_nErrors = 0;
-    m_Stop = false;
-    m_FirstTime = true;
-    m_ComPort = NULL;
     m_Baud = BaudRates[0];
-    m_CheckCRC = false;
-    vPorts.clear();
-
+    m_CheckCRC = true;
+	m_OpenPort = false;
+	m_OldLineBuffer = NULL;
+	m_Working = false;
+	m_Writer = false;
+	m_LineBuffer = NULL;
+	m_ReconnectCounter = 0;
+	m_PharseLine = false;
+	//m_SerialBuffer = (char*)malloc(BUFFER);
+	m_ComPort = NULL;
+	m_Connected = false;
+	m_NoNewSignalCounter = 0;
+	m_NoNewSignal = false;
+	m_LineBufferLength = 0;
 }
 
 CSerial::~CSerial()
 {
     m_Stop = true;
-    m_Working = false;
     m_Connected = false;
-    if (m_OpenPort)
-    {
-#ifdef _WIN32
-	CloseHandle(m_ComPort);
-#endif
-	m_ComPort = NULL;
-        m_OpenPort = false;
-    }
-    
     vPorts.clear();
+	ClearTalkers();
     ClearSignals();
-	
+    ClearLineBuffer();
 }
+
+void CSerial::SetParseLine(bool value)
+{
+	m_PharseLine = value;
+}
+
+void CSerial::SetWriter(bool val)
+{
+	m_Writer = val;
+}
+
+bool CSerial::GetWriter()
+{
+	return m_Writer;
+}
+
+char *CSerial::GetLineBuffer()
+{
+	return m_LineBuffer;
+}
+
+size_t CSerial::GetLineBufferLength()
+{
+	return m_LineBufferLength;
+}
+
+
 size_t CSerial::GetLinesCount()
 {
 	return m_LinesCount;
@@ -140,6 +159,17 @@ void CSerial::ClearSignals()
 	vSignals.clear();
 }
 
+void CSerial::ClearTalkers()
+{
+	for(size_t i = 0; i < vTalkers.size(); i++)
+	{
+		free(vTalkers[i].talker);
+		
+	}
+	
+	vTalkers.clear();
+}
+
 void CSerial::PharseLine( char *_Data, int _DataLen )
 {
 
@@ -147,80 +177,170 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
     int Len;
     char *DataPtr = (char*)_Data;
 
+    int valid_nmea = 1;
+    
     while( i < _DataLen )
     {
 
-		if( memcmp(DataPtr, "\n", 1) == 0)
-        {
+	if( memcmp(DataPtr, "\n", 1) == 0)
+    {
 
-            Len = i - Start;
-            Len = Len + 1;
-            if( m_OldLineLength == 0 )
-            {
-                memset(m_LineBuffer,0,BUFFER_LENGTH);
-                memcpy(m_LineBuffer, (_Data + Start ), Len);
-				
-				
-            }else{
-               
-                memset(m_LineBuffer,0,BUFFER_LENGTH);
-                memcpy(m_LineBuffer, m_OldLineBuffer, m_OldLineLength);
-                memcpy((m_LineBuffer + m_OldLineLength), (_Data + Start ), Len);
-               
-                ClearLineBuffer();
-            }
-           
-			OnLine((unsigned char*)m_LineBuffer);
-			NMEASignal((unsigned char*)m_LineBuffer);
-            
-			DataPtr += m_EOLen;
-            i += m_EOLen;
-            Start += (Len + m_EOLen) - 1;
+		Len = i - Start;
+		Len = Len + 1;
+		if( m_OldLineLength == 0 )
+		{
+			m_LineBuffer = (char*)malloc(Len + 1);
+			memset(m_LineBuffer,0,Len + 1);
+            memcpy(m_LineBuffer, (_Data + Start ), Len);
 
-        }else{
+		}else{
+
+			m_LineBuffer = (char*)malloc(m_OldLineLength + Len + 1);
+            memset(m_LineBuffer,0,m_OldLineLength + Len + 1);
+            memcpy(m_LineBuffer, m_OldLineBuffer, m_OldLineLength);
+            memcpy((m_LineBuffer + m_OldLineLength), (_Data + Start ), Len);
+			ClearLineBuffer();
+       }
+
+		valid_nmea = NMEASignal((char*)m_LineBuffer);
+		if(valid_nmea == 0)
+			OnValidNMEA();
+		if(valid_nmea == 1)
+			OnInvalidNMEA();
+		if(valid_nmea == 2)
+			OnBadCRC();	
+		
+		m_LineBufferLength = strlen((const char*)m_LineBuffer);
+		OnLine((char*)m_LineBuffer, m_LineBufferLength);
+	    
+		free(m_LineBuffer);
+		m_LineBuffer = NULL;
+		DataPtr += m_EOLen;
+		i += m_EOLen;
+		Start += (Len + m_EOLen) - 1;
+
+	}else{
 
             DataPtr++;
             i++;
-        };
+        }
 
-     };
+     }
+
 
     if( Start < _DataLen )          // bufor niedociętych linii
     {
-        Len = _DataLen - Start;
-        m_OldLineBuffer = (char*)realloc(m_OldLineBuffer, Len + m_OldLineLength);
-		//memset(m_OldLineBuffer,0, Len + m_OldLineLength);
-        memcpy(m_OldLineBuffer, m_OldLineBuffer, m_OldLineLength);
-        memcpy((m_OldLineBuffer + m_OldLineLength), (_Data + Start ), Len);
-        m_OldLineLength += Len;
-    };
+		Len = _DataLen - Start;
+		m_OldLineBuffer = (char*)realloc(m_OldLineBuffer, Len + m_OldLineLength);
+		memcpy(m_OldLineBuffer, m_OldLineBuffer, m_OldLineLength);
+		memcpy((m_OldLineBuffer + m_OldLineLength), (_Data + Start ), Len);
+		m_OldLineLength += Len;
+    }
+	//fprintf(stdout,"old line lenght: %d\n",m_OldLineLength);
+    if(m_OldLineLength > 128) // hardcoded here
+		OnInvalidNMEA();
+   
+//    if(valid_plain_text)
+//	OnValidPlainText();
+//    else
+//	OnInvalidPlainText();
+	
+}
 
-};
-
-void CSerial::NMEASignal(unsigned char *line)
+int CSerial::NMEASignal(char *line)
 {
 	m_LinesCount++;
-	
+
 	if(!CheckChecksum((const char*)line))
 	{
 		m_BadCrc++;
 		if(m_CheckCRC)
-			return;
+		    return 2;
 	}
-	
-	unsigned char *from = (unsigned char*)memchr(line,'$',strlen((char*)line));
+
+	char *from = NULL;
+	char *old_from = NULL;
+	char *from1 = (char*)memchr(line,'!',strlen((char*)line));
+	if(from1 != NULL)
+		from = from1;
+
+	char *from2 = (char*)memchr(line,'$',strlen((char*)line));
+	if(from2 != NULL)
+		from = from2;
+
 	if(from == NULL)
-		return;
-	
-	unsigned char *to = (unsigned char*)memchr(line,',',strlen((char*)line));
+		return 1;
+
+	char *to = (char*)memchr(from,',',strlen((char*)from));
 	if(to == NULL)
-		return;
+		return 1;
 	
-	unsigned char *buf = (unsigned char*)malloc( to - from + 1 );
+	if(from > to)
+		return 1; 
+
+	m_ValidNMEA = true;
+	OnNMEALine(from,strlen((const char*)from));
+	old_from = from;
+
+	AddTalker(from);
+	AddSignal(from, to);
+	
+	if(m_ValidNMEA)
+		return 0;
+	else
+		return 1;
+
+}
+
+
+void CSerial::AddTalker(char *data)
+{
+	char *from = data;
+	from = from + (1 * sizeof(char));
+	char *buf = (char*)malloc( TALKER_LENGTH + 1 );
+	memset(buf,0,TALKER_LENGTH + 1);
+	memcpy(buf,from, TALKER_LENGTH);
+	bool add = true;
+	
+	if(vTalkers.size() !=0)
+	{	
+		for( int i = 0; i < vTalkers.size();i++)
+		{	
+			if( memcmp(vTalkers[i].talker,buf,TALKER_LENGTH + 1) == 0)
+			{
+				add = false;
+				break;
+			}
+		}
+	}
+
+	if(add)
+	{	
+		m_TalkerCounter = MAX_TALKER_COUNTER;
+		STalker Talker;
+		Talker.talker = buf;
+		vTalkers.push_back(Talker);
+		OnNewTalker(Talker);
+	
+	}else{
+
+		m_TalkerCounter--;
+		if(m_TalkerCounter <= 0 )
+			OnNoNewTalker();
+		free(buf);
+
+	}
+}
+
+void CSerial::AddSignal(char *data, char *to)
+{
+	char *from = data;
+	from = from + (3 * sizeof(char));
+	char *buf = (char*)malloc( to - from + 1 );
 	memset(buf,0,to - from + 1);
 	memcpy(buf,from, to - from);
 	bool add = true;
-
+	
 	if(vSignals.size() != 0)
 	{
 		for( int i = 0; i < vSignals.size();i++)
@@ -240,16 +360,22 @@ void CSerial::NMEASignal(unsigned char *line)
 		SSignal Signal;
 		Signal.name = buf;
 		Signal.count = 1;
-		Signal.nmea = (unsigned char*)malloc(strlen((char*)from) + 1);
+		Signal.nmea = (char*)malloc(strlen((char*)from) + 1);
 		strcpy((char*)Signal.nmea,(char*)from);
 		vSignals.push_back(Signal);
-		OnNewSignal();
-		
+		OnNewSignal(Signal);
+				
 	}else{
-	
+		
 		free(buf);
 	}
+
 }
+//bool CSerial::ValidPlainText(const char *line)
+//{
+    
+//}
+
 
 bool CSerial::CheckChecksum(const char *nmea_line) {
 
@@ -298,14 +424,14 @@ void CSerial::ScanPorts()
         wsprintf(port_name,L"\\\\.\\COM%d",port_number);
         //Try to open the port
         bool bSuccess = false;
-		fwprintf(stderr,L"opening port %s\n",port_name);
-        HANDLE hPort = CreateFile(port_name, GENERIC_READ , 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
+		//fwprintf(stderr,L"opening port %s\n",port_name);
+        HANDLE hPort = CreateFile(port_name, GENERIC_READ , NULL, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
         if (hPort == INVALID_HANDLE_VALUE)
         {
             DWORD dwError = GetLastError();
             //Check to see if the error was because some other app had the port open or a general failure
-            if (dwError == ERROR_ACCESS_DENIED || dwError == ERROR_GEN_FAILURE || dwError == ERROR_SHARING_VIOLATION || dwError == ERROR_SEM_TIMEOUT)
-                bSuccess = true;
+            //if (dwError == ERROR_ACCESS_DENIED || dwError == ERROR_GEN_FAILURE || dwError == ERROR_SHARING_VIOLATION || dwError == ERROR_SEM_TIMEOUT)
+              //  bSuccess = true;
         }
         else
         {
@@ -336,8 +462,8 @@ void CSerial::ScanPorts()
 
     for (port_number = 0; port_number < 257; port_number++)
     {
-        if(m_Stop)
-            return;
+        //if(m_Stop)
+        //    return;
 
         char port_name[PORT_NAME_LENGTH];
         bool bSuccess = false;
@@ -345,6 +471,7 @@ void CSerial::ScanPorts()
 
         // dla ttyS.............................................//
         sprintf(port_name,"/dev/ttyUSB%d",port_number);
+    	//printf("%s",port_name);
         bSuccess = Scan(port_name);
 
         if (bSuccess)
@@ -361,9 +488,11 @@ void CSerial::ScanPorts()
         // dla ttyS.................................................//
         memset(port_name,'0',PORT_NAME_LENGTH);
         sprintf(port_name,"/dev/ttyS%d",port_number);
+
         bSuccess = Scan(port_name);
         if (bSuccess)
         {
+            //fprintf(stderr,"Dodano:%s\n",port_name);
             memset(Ports.port_name,'0',PORT_NAME_LENGTH);
             strcpy(Ports.port_name,port_name);
             memset(Ports.port_string,'0',PORT_STRING_LENGTH);
@@ -404,12 +533,13 @@ bool CSerial::Scan(char port_name[PORT_NAME_LENGTH])
         close(fdesc);
         return false;
     }
-    //error = flock(fdesc,LOCK_EX | LOCK_NB);
-    //if(error == EWOULDBLOCK)
-    //{
-    //    close(fdesc);
-    //    return false;
-    //}
+    error = flock(fdesc,LOCK_EX | LOCK_NB);
+
+    if(error < 0)
+    {
+        close(fdesc);
+        return false;
+    }
 
     close(fdesc);
     return true;
@@ -440,41 +570,58 @@ bool CSerial::GetStop()
     return m_Stop;
 }
 
-void CSerial::Stop()
+void CSerial::Stop(bool wait)
 {
-
     m_Stop = true;
-#if defined(_WIN32) || defined(_WIN64)
-    WaitForSingleObject(m_ThreadHANDLE,INFINITE);
-#endif
-#if defined(_LINUX32) || defined(_LINUX64)
-    sleep(1);
-#endif
-
     OnStop();
 
     if (m_OpenPort) // wa¿ne w tym miejscu po fladze stop
     {
+		m_OpenPort = false;
 #if defined(_WIN32) || defined(_WIN64)
-        CloseHandle(m_ComPort);
-	m_ComPort = NULL;
+		LPDWORD lpErrors = 0;
+		//CancelIo(m_ComPort);
+		ClearCommError(m_ComPort,lpErrors,NULL);
+		CloseHandle(m_ComPort);
+		m_ComPort = NULL;
 #endif
 #if defined(_LINUX32) || defined(_LINUX64)
-    close(m_ComPort);
+		flock(m_ComPort,LOCK_UN);
+		tcsetattr(m_ComPort, TCSANOW, &m_OldPortSettings);
+		int a = close(m_ComPort);
+		//fprintf(stderr,"Close form stop %d\n",a);
+		//m_ComPort = -1;
 #endif
+	  
+	}
 
+#if defined(_WIN32) || defined(_WIN64)
+	if(wait)
+		WaitForSingleObject(m_ThreadHANDLE,INFINITE);
+#endif
+#if defined(_LINUX32) || defined(_LINUX64)
+	//	//sleep(0);
+#endif
+     
+   // }
 
-        m_OpenPort = false;
-    }
-
-    ClearSignals();
-
+    
+    m_BadCrc = 0;
+    m_LinesCount = 0;
+    m_OldLineLength = 0;
+    m_EOLen = EOL_LENGTH;
+    m_EmptyCount = 0;
     m_Connected = false;
-    m_Working = false;
+    m_NumberOfPorts = -1;
+    m_OpenPort = false;
     m_ValidDevice = false;
-    memset(m_SerialBuffer,0,BUFFER);
-    m_BufferLength = 0;
-
+    m_Errors = 0;
+    m_ComPort = NULL;
+    m_ValidNMEA = false;
+    m_BufferLength = -1;
+	m_NoNewSignal = false;
+    vPorts.clear();
+	ClearLineBuffer();
 }
 
 void CSerial::Start()
@@ -482,9 +629,29 @@ void CSerial::Start()
     if (m_Working)
         return;
 
-    OnStart();
+    m_BadCrc = 0;
+    m_LinesCount = 0;
+    m_OldLineBuffer = NULL;
+    m_OldLineLength = 0;
+    m_EOLen = EOL_LENGTH;
+    m_EmptyCount = 0;
+    m_Connected = false;
+    m_NumberOfPorts = -1;
+    m_OpenPort = false;
+    m_Working = false;
+    m_ValidDevice = false;
+    m_Errors = 0;
     m_Stop = false;
-	
+    //m_FirstTime = true;
+    m_ComPort = NULL;
+    m_ValidNMEA = false;
+    m_BufferLength = -1;
+    vPorts.clear();
+	ClearSignals();
+	ClearTalkers();
+    
+	OnStart();
+
     StartThread();
 
 }
@@ -510,69 +677,123 @@ bool CSerial::Connect(const char *port, int baud_rate)
 
     m_BadCrc = 0;
     m_LinesCount = 0;
-    m_OpenPort = false;
     m_Baud = baud_rate;
     strcpy(m_Port,port);
-
+	OnConnect();
     OpenPort(port,baud_rate);
+
 #if defined(_WIN32) || defined(_WIN64)
     if (m_ComPort != NULL)
     {
 #endif
 #if defined(_LINUX32) || defined(_LINUX64)
-    if (m_ComPort != 0)
+    if (m_ComPort > -1)
     {
 #endif
-
         m_Connected = true;
         m_OpenPort = true;
-        OnConnect();
-    }
-    else
-    {
+        
+		OnConnected();
+
+    }else{
+
         m_Connected = false;
         OnDisconnect();
     }
+    
 	
     return m_Connected;
 
 }
+void CSerial::Disconnect()
+{
+#if defined(_WIN32) || defined(_WIN64)
+	if(m_ComPort)
+		CloseHandle(m_ComPort);
+	m_ComPort = NULL;
+#endif
+#if defined(_LINUX32) || defined(_LINUX64)    
+	flock(m_ComPort,LOCK_UN);
+	//tcsetattr(m_ComPort, TCSANOW, &m_OldPortSettings);
+    int ret = close(m_ComPort);
+    //fprintf(stderr,"Close %s %d %d\n",m_Port,m_Baud, ret);
+    m_ComPort = -1;
+#endif
+    m_Connected = false;
+    m_OpenPort = false;
+
+}
+bool CSerial::Connect()
+{
+	return Connect(m_Port,m_Baud);
+}
 
 bool CSerial::Reconnect()
 {
-
-    if (m_Stop)
+	if (m_Stop)
         return false;
-
 	bool con = false;
-	m_FirstTime = false;
+	
+//	if(!m_FirstTime)
+//	{
+		m_ReconnectCounter++;
+	
+		if(m_ReconnectCounter < RECCONNECT_COUNTER)
+			return false;
+		OnReconnect();
+//	}
 #if defined(_WIN32) || defined(_WIN64)
-	Sleep(1000);
+	//Sleep(100);
 #endif
 #if defined(_LINUX32) || defined(_LINUX64)
+    if(m_OpenPort)
+    {
+	flock(m_ComPort,LOCK_UN);
+	//tcsetattr(m_ComPort, TCSANOW, &m_OldPortSettings);
+	int ret = close(m_ComPort);
+	//fprintf(stderr,"Close %s %d %d\n",m_Port,m_Baud, ret);
+	m_ComPort = -1;
+    }
     sleep(1);
 #endif
 	
-	con = Connect(m_Port,m_Baud);	
-	OnReconnect();
-	
+	con = Connect(m_Port,m_Baud);
+	m_ReconnectCounter = 0;
 
+    //m_FirstTime = false;
     return con;
 }
 
-void CSerial::SetPort(char *port)
+void CSerial::_SetPort(const char *port)
 {
 	strcpy(m_Port,port);
 }
 
 void CSerial::SetBaud(int baud)
 {
-	m_Baud = baud;
+    //m_FirstTime = true;
+    m_Baud = baud;
 }
 
 bool CSerial::IsConnected()
 {
+    //fprintf(stderr,"IsConnected %d",m_Connected);
     return m_Connected;
+}
+
+void CSerial::SetIsConnected(bool val)
+{
+     m_Connected = false;
+}
+
+size_t CSerial::GetTalkerCount()
+{
+	return vTalkers.size();
+}
+
+char *CSerial::GetTalker(size_t id)
+{
+	return vTalkers[id].talker;
 }
 
 size_t CSerial::GetSignalCount()
@@ -587,31 +808,67 @@ SSignal *CSerial::GetSignal(int idx)
 
 int CSerial::Read()
 {
-    memset(m_SerialBuffer,0,BUFFER + 1);
-    m_BufferLength = ReadPort(m_ComPort,m_SerialBuffer,BUFFER);
+    struct timeval tv;
+    int retval;
+    m_ValidNMEA = false;
+    memset(m_SerialBuffer,0,BUFFER_LENGTH);
+#if defined(_LINUX32) || defined(_LINUX64)
+	fd_set rfds;
+    FD_ZERO(&rfds);
+    FD_SET(m_ComPort, &rfds);
+
+    tv.tv_sec = 5;
+    tv.tv_usec = 0;
+    retval = select(m_ComPort + 1,&rfds,NULL,NULL,&tv);
+    //fprintf(stderr,"%s RET VAL....... %d\n",GetPortName(),retval);
+    if(!retval)
+    {
+		fprintf(stderr,"%s RETVA[%d]\n",GetPortName(),retval);
+		return -1;
+    }
+#endif
+    
+	m_BufferLength = ReadPort(m_ComPort,m_SerialBuffer,BUFFER_LENGTH);
 	
-	if(m_BufferLength == 0)
-		m_emptyCount++;
-	else
-		m_emptyCount = 0;
-	
-	if(m_emptyCount >= 5)
-	{
-		//m_BufferLength = -1;
-		//printf("no signal on port %s\n",GetPortName());
+    if(m_BufferLength == 0)
+    	m_EmptyCount++;
+    else
+    	m_EmptyCount = 0;
+
+    if(m_EmptyCount >= _MAX_ZERO_COUNTER)
+    {
 		OnNoSignal();
-		m_emptyCount = 0;
-	}
+		m_EmptyCount = 0;
+		Disconnect();
+    }
 	
-	if(m_BufferLength > 0)
-	{
-		OnData(m_SerialBuffer,m_BufferLength);
-		//FoldLine(m_SerialBuffer,m_BufferLength);
-		PharseLine((char*)m_SerialBuffer,m_BufferLength);
-	}
-	return m_BufferLength;
+    if(m_BufferLength > 0)
+    {
+	OnData(m_SerialBuffer,m_BufferLength);
+	if(m_PharseLine)
+    	    PharseLine((char*)m_SerialBuffer,m_BufferLength);
+		
+    }
+
+    return m_BufferLength;
 }
 
+int CSerial::Write(char *buffer, int length)
+{
+    int size = 0;
+#if defined(_WIN32) || defined(_WIN64)
+    size = WritePort(m_ComPort,buffer,length);
+#endif
+#if defined(_LINUX32) || defined(_LINUX64)
+    size = WritePort(m_ComPort,buffer,length);
+#endif
+    m_LinesWritten++;
+    return size;
+}
+int CSerial::GetLinesWriten()
+{
+	return m_LinesWritten;
+}
 
 void CSerial::SetLength(int size)
 {
@@ -623,17 +880,24 @@ int CSerial::GetBaudRate()
     return m_Baud;
 }
 
-int CSerial::GetnErrors()
+int CSerial::GetErrors()
 {
-    return m_nErrors;
+    //fprintf(stderr,"Errors %d\n",m_Errors);
+    return m_Errors;
 }
 
-void CSerial::SetnErrors(int n)
+void CSerial::IncrementErrors()
 {
-    m_nErrors = n;
+    //fprintf(stderr,"Increment %d\n",m_Errors);
+    m_Errors++;
 }
 
-unsigned char *CSerial::GetBuffer()
+void CSerial::ResetErrors()
+{
+    m_Errors = 0;
+}
+
+char *CSerial::GetBuffer()
 {
     return m_SerialBuffer;
 }
@@ -664,16 +928,16 @@ void CSerial::StartThread()
 #endif
 }
 
-void CSerial::Disconnect()
-{
-}
 
+bool CSerial::GetValidNMEA()
+{
+    return m_ValidNMEA;
+}
 
 #ifdef __linux__   /* Linux */
 #include <sys/file.h>
 #include <errno.h>
 
-struct termios old_port_settings;
 
 void CSerial::OpenPort(const char *port, int baudrate)
 {
@@ -698,19 +962,23 @@ void CSerial::OpenPort(const char *port, int baudrate)
     m_ComPort = open(port, O_RDWR | O_NOCTTY | O_NDELAY );
 
     if(m_ComPort==-1)
+    {
+        //fprintf(stderr,"Open port er1");
         return;
-
+    }
     error = flock(m_ComPort, LOCK_EX | LOCK_NB );
     if(error==-1)
     {
         close(m_ComPort);
+                //fprintf(stderr,"Open port er2");
         return;
     }
 
-    error = tcgetattr(m_ComPort, &old_port_settings);
+    error = tcgetattr(m_ComPort, &m_OldPortSettings);
     if(error==-1)
     {
         close(m_ComPort);
+                //fprintf(stderr,"Open port er3");
         return;
     }
 
@@ -719,12 +987,13 @@ void CSerial::OpenPort(const char *port, int baudrate)
     port_settings.c_iflag = IGNPAR;
     port_settings.c_oflag = 0;
     port_settings.c_cc[VMIN] = 128;      /* block untill n bytes are received */
-    port_settings.c_cc[VTIME] = 0;     /* block untill a timer expires (n * 100 mSec.) */
+    port_settings.c_cc[VTIME] =  0;     /* block untill a timer expires (n * 100 mSec.) */
     error = tcsetattr(m_ComPort, TCSANOW, &port_settings);
 
     if(error==-1)
     {
         close(m_ComPort);
+        //fprintf(stderr,"Open port er4");
         return;
     }
 
@@ -732,8 +1001,18 @@ void CSerial::OpenPort(const char *port, int baudrate)
 }
 
 
-int CSerial::ReadPort(int ComPort,unsigned char *buf, int size)
+int CSerial::ReadPort(int ComPort,char *buf, int size)
 {
+    //int res;
+    //struct timeval timeout;
+    //fd_set readfs;
+    //timeout.tv_usec = 0;
+    //timeout.tv_sec = 5;
+
+    //FD_SET(m_ComPort,&readfs);
+    //res = select(1,&readfs,NULL,NULL,&timeout);
+    //fprintf(stderr,"Read RESULT : %d",res);
+
     int n;
 
 #ifndef __STRICT_ANSI__                       /* __STRICT_ANSI__ is defined when the -ansi option is used for gcc */
@@ -746,6 +1025,14 @@ int CSerial::ReadPort(int ComPort,unsigned char *buf, int size)
 
     return(n);
 }
+
+int CSerial::WritePort(int ComPort, char *buf, int size)
+{
+    int n;
+    n = write(ComPort, buf, size);
+    return(n);
+}
+
 
 //void CSerial::ClosePort()
 //{
@@ -824,23 +1111,23 @@ void CSerial::OpenPort(const char *port, int baudrate)
 	memset(port_string,0,len);
 
 	sprintf(port_string,"\\\\.\\%s",port);
-    m_ComPort = CreateFileA(port_string, GENERIC_READ|GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+    //m_ComPort = CreateFileA(port_string, GENERIC_READ|GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
+	m_ComPort = CreateFileA(port_string, GENERIC_READ|GENERIC_WRITE, 0, 0, OPEN_EXISTING, 0, 0);
+
 	free(port_string);
-    if(m_ComPort == INVALID_HANDLE_VALUE)
+    
+	if(m_ComPort == INVALID_HANDLE_VALUE)
     {	
 		m_ComPort = NULL;
-        //printf("unable to open comport\n");
-		return;
+        return;
     }
-
-	
+		
     DCB port_settings;
     memset(&port_settings, 0, sizeof(port_settings));  /* clear the new struct  */
     port_settings.DCBlength = sizeof(port_settings);
 
     if(!BuildCommDCBA(baudr, &port_settings))
     {
-        //printf("unable to set comport dcb settings\n");
         CloseHandle(m_ComPort);
 		m_ComPort = NULL;
 		return;
@@ -848,7 +1135,6 @@ void CSerial::OpenPort(const char *port, int baudrate)
 	
     if(!SetCommState(m_ComPort, &port_settings))
     {
-        //printf("unable to set comport cfg settings\n");
         CloseHandle(m_ComPort);
 		m_ComPort = NULL;
 		return;
@@ -864,7 +1150,6 @@ void CSerial::OpenPort(const char *port, int baudrate)
 
     if(!SetCommTimeouts(m_ComPort, &Cptimeouts))
     {
-        //printf("unable to set comport time-out settings\n");
         CloseHandle(m_ComPort);
 		m_ComPort = NULL;
         return;
@@ -874,17 +1159,38 @@ void CSerial::OpenPort(const char *port, int baudrate)
 }
 
 
-int CSerial::ReadPort(HANDLE port,unsigned char *buf, int size)
+int CSerial::ReadPort(HANDLE port,char *buf, int size)
+{
+	if(m_Stop)
+		return -1;
+
+	int nBytesRead = 0;
+	if(size > 4096)  
+		size = 4096;
+	    
+	BOOL bResult = ReadFile(port, buf, size, (LPDWORD)&nBytesRead, NULL);
+		
+	if(bResult)
+		return nBytesRead;
+	else
+		nBytesRead = 0;
+		
+	return nBytesRead;
+}
+
+
+/*
+int CSerial::ReadPort(HANDLE port, char *buf, int size)
 {
 	
     int nBytesRead = 0;
     DWORD dwCommModemStatus,deRes;
     OVERLAPPED o;
     if(size>4096)  size = 4096;
-
+*/
     /* added the void pointer cast, otherwise gcc will complain about */
     /* "warning: dereferencing type-punned pointer will break strict aliasing rules" */
-
+/*
     SetCommMask (port, EV_RXCHAR|EV_CTS|EV_DSR|EV_RING|EV_ERR|EV_BREAK|EV_RLSD);
 	o.hEvent = CreateEvent(
                    NULL,   // default security attributes
@@ -948,46 +1254,91 @@ int CSerial::ReadPort(HANDLE port,unsigned char *buf, int size)
 	
     return nBytesRead;
 }
+*/
 
-
-
-
-void CSerial::ShowError()
+/*
+int CSerial::WritePort(HANDLE port,char *buf, int size)
 {
-	LPVOID lpMsgBuf;
-	FormatMessage( 
-		FORMAT_MESSAGE_ALLOCATE_BUFFER | 
-		FORMAT_MESSAGE_FROM_SYSTEM | 
-		FORMAT_MESSAGE_IGNORE_INSERTS,
-		NULL,
-		GetLastError(),
-		0, // Default language
-		(LPTSTR) &lpMsgBuf,
-		0,
-		NULL 
-	);
-	// Process any inserts in lpMsgBuf.
-	// ...
-	// Display the string.
-	//printf("%Ls",lpMsgBuf);
-//	MessageBox( NULL, (LPCTSTR)lpMsgBuf, L"Error", MB_OK | MB_ICONINFORMATION );
-	// Free the buffer.
-	LocalFree( lpMsgBuf );
-}
+	int n = -1;
+    if(port == INVALID_HANDLE_VALUE)
+		return -1;
 
+	OVERLAPPED o;
+	o.hEvent = CreateEvent(
+                   NULL,   // default security attributes
+                   TRUE,   // manual-reset event
+                   FALSE,  // not signaled
+                   NULL    // no name
+               );
+
+	if(o.hEvent == NULL)
+		return 0;
+    
+	// Initialize the rest of the OVERLAPPED structure to zero.
+    o.Internal = 0;
+    o.InternalHigh = 0;
+    o.Offset = 0;
+    o.OffsetHigh = 0;
+	o.Pointer = 0;
+
+	BOOL bResult = WriteFile(port, buf, size, (LPDWORD)((void *)&n), &o);
+	
+	if(bResult)
+	{
+			CloseHandle(o.hEvent);
+			return n;
+	}else{
+		
+		DWORD lError = GetLastError();
+				
+		if (lError != ERROR_IO_PENDING)
+			n = 0;
+
+		GetOverlappedResult(port,&o,(LPDWORD)&n,FALSE);
+	}
+	
+	//CancelIo(port);
+	
+	return n;
+}
+*/
+
+int CSerial::WritePort(HANDLE port,char *buf, int size)
+{
+	//return -1;
+    int n = -1;
+    if(port == INVALID_HANDLE_VALUE)
+		return -1;
+
+	BOOL bResult = WriteFile(port, buf, size, (LPDWORD)((void *)&n), NULL);
+	if(bResult)
+		return n;
+	else			
+		n = 0;
+	
+	return n;
+}
 #endif
 
 // virtual methods
 void CSerial::OnConnect()
 {
+
+}
+void CSerial::OnConnected()
+{
+
 }
 void CSerial::OnDisconnect()
 {
 }
-void CSerial::OnLine(unsigned char* buffer)
+void CSerial::OnLine( char* buffer,int length)
 {
 }
-void CSerial::OnData(unsigned char* buffer, int length)
+void CSerial::OnNMEALine( char* buffer,int length)
+{
+}
+void CSerial::OnData( char* buffer, int length)
 {
 }
 void CSerial::OnExit()
@@ -1008,9 +1359,31 @@ void CSerial::OnAfterMainLoop()
 void CSerial::OnReconnect()
 {
 }
-void CSerial::OnNewSignal()
+void CSerial::OnNewSignal(SSignal signal)
 {
 }
 void CSerial::OnNoSignal()
 {
 }
+void CSerial::OnValidNMEA()
+{
+}
+void CSerial::OnInvalidNMEA()
+{
+}
+void CSerial::OnBadCRC()
+{
+}
+void CSerial::OnNewTalker(STalker talker)
+{
+
+}
+void CSerial::OnNoNewTalker()
+{
+
+}
+
+
+//void CSerial::OnInvalidPlainText()
+//{
+//}
