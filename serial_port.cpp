@@ -828,7 +828,7 @@ int CSerial::Read()
     //fprintf(stderr,"%s RET VAL....... %d\n",GetPortName(),retval);
     if(!retval)
     {
-		fprintf(stderr,"%s RETVA[%d]\n",GetPortName(),retval);
+	//	fprintf(stderr,"%s RETVA[%d]\n",GetPortName(),retval);
 		return -1;
     }
 #endif
