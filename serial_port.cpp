@@ -712,9 +712,11 @@ bool CSerial::Connect(const char *port, int baud_rate)
 }
 void CSerial::Disconnect()
 {
+#if defined(_WIN32) || defined(_WIN64)
 	if(m_ComPort)
 		CloseHandle(m_ComPort);
 	m_ComPort = NULL;
+#endif
 #if defined(_LINUX32) || defined(_LINUX64)    
 	flock(m_ComPort,LOCK_UN);
 	//tcsetattr(m_ComPort, TCSANOW, &m_OldPortSettings);
@@ -826,7 +828,7 @@ int CSerial::Read()
     //fprintf(stderr,"%s RET VAL....... %d\n",GetPortName(),retval);
     if(!retval)
     {
-		fprintf(stderr,"%s RETVA[%d]\n",GetPortName(),retval);
+	//	fprintf(stderr,"%s RETVA[%d]\n",GetPortName(),retval);
 		return -1;
     }
 #endif
@@ -848,10 +850,10 @@ int CSerial::Read()
 
 	if(m_BufferLength > 0)
     {
-		if(m_PharseLine)
-    		PharseLine((char*)m_SerialBuffer,m_BufferLength);
-		else
-			OnData(m_SerialBuffer,m_BufferLength);
+	OnData(m_SerialBuffer,m_BufferLength);
+	if(m_PharseLine)
+    	    PharseLine((char*)m_SerialBuffer,m_BufferLength);
+		
     }
 
     return m_BufferLength;
@@ -1005,7 +1007,7 @@ void CSerial::OpenPort(const char *port, int baudrate)
 }
 
 
-int CSerial::ReadPort(int ComPort,unsigned char *buf, int size)
+int CSerial::ReadPort(int ComPort,char *buf, int size)
 {
     //int res;
     //struct timeval timeout;
@@ -1030,7 +1032,7 @@ int CSerial::ReadPort(int ComPort,unsigned char *buf, int size)
     return(n);
 }
 
-int CSerial::WritePort(int ComPort,unsigned char *buf, int size)
+int CSerial::WritePort(int ComPort, char *buf, int size)
 {
     int n;
     n = write(ComPort, buf, size);

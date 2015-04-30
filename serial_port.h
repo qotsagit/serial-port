@@ -19,10 +19,10 @@
 #include "vector"
 
 
-#define THREAD_SLEEP			20
-#define EOL_LENGTH				1
-#define NUMBER_OF_PORTS			256
-#define BAUD_LENGTH				7
+#define THREAD_SLEEP		20
+#define EOL_LENGTH		1
+#define NUMBER_OF_PORTS		256
+#define BAUD_LENGTH		7
 #define PORT_NAME_LENGTH    	16
 #define PORT_STRING_LENGTH  	16
 #define BUFFER_LENGTH			1024
@@ -65,6 +65,7 @@ class CSerial
 #endif
 
 #if defined(_LINUX32) || defined(_LINUX64)
+
 	int m_ComPort;
 	struct termios m_OldPortSettings;
 #endif
@@ -112,8 +113,8 @@ class CSerial
 #endif
 
 #if defined(_LINUX32) || defined(_LINUX64)
-	int ReadPort(int port,unsigned char *buf, int size);
-	int WritePort(int port,unsigned char *buf, int size);
+	int ReadPort(int port, char *buf, int size);
+	int WritePort(int port, char *buf, int size);
 #endif
 
 	void FoldLine(  char *Buffer, int BufferLength );
@@ -141,7 +142,7 @@ public:
 	int GetLength();				// buffer length
 	bool GetStop();
 	int GetBaudRate();
-	 char *GetBuffer();
+	char *GetBuffer();
 	bool IsConnected();
 	void SetIsConnected(bool val);
 	void ResetErrors();				
