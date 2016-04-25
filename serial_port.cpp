@@ -1187,7 +1187,7 @@ void CSerial::OpenPort(const char *port, int baudrate)
 
 	Cptimeouts.ReadIntervalTimeout         = MAXDWORD;
     Cptimeouts.ReadTotalTimeoutMultiplier  = 0;
-	Cptimeouts.ReadTotalTimeoutConstant    = 0;
+	Cptimeouts.ReadTotalTimeoutConstant    = 10;
     Cptimeouts.WriteTotalTimeoutMultiplier = 0;
     Cptimeouts.WriteTotalTimeoutConstant   = 0;
 
@@ -1212,27 +1212,38 @@ int CSerial::ReadPort(HANDLE port,char *buf, int size)
 		size = 4096;
 
 	int t = GetTickCount();
-	int timeout = 100;
+	int timeout = 10;
 	BOOL bResult;
 	COMSTAT status;
 	DWORD errors;
 	memset(m_SerialBuffer,0,BUFFER_LENGTH);
+<<<<<<< HEAD
 
 	ClearCommError(port, &errors, &status);
+=======
+>>>>>>> c74c5deaa0bebbdd9bbc1649b603f3a0c7772e6f
 
 	//Check if there is something to read
-	if (status.cbInQue > 0)
+	int counter = 2;
+	while(counter--)
 	{
-		while(GetTickCount() - t  < timeout)
-		{
-			bResult = ReadFile(port, buf, size, (LPDWORD)&nBytesRead, NULL);
-			if(bResult)
-				return nBytesRead;
-			else
-				nBytesRead = 0;
-		}
-	}	
 
+	//ClearCommError(port, &errors, &status);
+	//if (status.cbInQue > 0)
+	//{
+			bResult = ReadFile(port, buf, size, (LPDWORD)&nBytesRead, NULL);
+			if(bResult && nBytesRead > 0)
+				return nBytesRead;
+			//else
+				//return  0;
+		
+	}	
+<<<<<<< HEAD
+
+=======
+	
+	//fprintf(stderr,"Queue empty\n");
+>>>>>>> c74c5deaa0bebbdd9bbc1649b603f3a0c7772e6f
 	return -1;
 }
 
