@@ -19,17 +19,19 @@
 #include "vector"
 
 
-#define THREAD_SLEEP		20
+#define THREAD_SLEEP		1
 #define EOL_LENGTH		1
 #define NUMBER_OF_PORTS		256
 #define BAUD_LENGTH		7
 #define PORT_NAME_LENGTH    	16
 #define PORT_STRING_LENGTH  	16
-#define BUFFER_LENGTH			1024
-#define _MAX_ZERO_COUNTER 		3000/THREAD_SLEEP
-#define RECCONNECT_COUNTER		5000/THREAD_SLEEP
-#define TALKER_LENGTH			2
-#define MAX_TALKER_COUNTER		20			// przez 50 lini brak nowego talkera wtedy OnNoNewTalker
+#define BUFFER_LENGTH		512
+#define _MAX_ZERO_COUNTER 	3000/THREAD_SLEEP
+#define RECCONNECT_COUNTER	5000/THREAD_SLEEP
+#define TALKER_LENGTH		2
+#define MAX_TALKER_COUNTER	20			// przez 50 lini brak nowego talkera wtedy OnNoNewTalker
+#define DEFAULT_READ_TIMEOUT	100			// timeout na czytaniu milisekundy
+#define DEFAULT_CRC_POS		1 			// pozycja od której obliczamy crc
 
 typedef struct
 {
@@ -56,7 +58,7 @@ typedef struct
 
 class CSerial
 {
-	char m_SerialBuffer[BUFFER_LENGTH];
+	char m_SerialBuffer[BUFFER_LENGTH + 1];
 #if defined(_WIN32) || defined(_WIN64)
 	static DWORD WINAPI _W32Thread(void *Param);
 	HANDLE m_ComPort;
@@ -74,7 +76,10 @@ class CSerial
 	std::vector <SSignal> vSignals;				//sygnaly NMEA
 
 	std::vector <STalker> vTalkers;
-	
+	int m_CRCPos;
+	int m_Flags;
+	int m_ReadTimeout;
+	bool m_Reconnect;
 	size_t m_LineBufferLength;
 	int m_NoNewSignalCounter;
 	bool m_CheckCRC;
@@ -121,7 +126,7 @@ class CSerial
 	void PharseLine( char *_Data, int _DataLen );
 	int NMEASignal( char *Line);
 	void ClearLineBuffer(void);
-	bool CheckChecksum(const char *nmea_line);
+	bool CheckCRC(const char *nmea_line, size_t chcount);
 	void ClearSignals();
 	bool Connect(const char *port, int baud);
 	void AddSignal(char *data, char *to);
@@ -186,7 +191,11 @@ public:
 	char *GetLineBuffer();
 	size_t GetLineBufferLength();
 	void SetStop(bool v);
-					
+	void SetReadTimeout(int v);
+	void SetReconnect(bool v);
+	bool GetReconnect();
+	void SetPortFlags(int v);
+	void SetCRCPos(size_t v);
 	virtual void OnConnect();
 	virtual void OnConnected();
 	virtual void OnDisconnect();
@@ -203,7 +212,7 @@ public:
 	virtual void OnNoSignal();
 	virtual void OnValidNMEA();
 	virtual void OnInvalidNMEA();
-	virtual void OnBadCRC();
+	virtual void OnBadCRC(char *line);
 	virtual void OnNewTalker(STalker talker);
 	virtual void OnNoNewTalker();
 

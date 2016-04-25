@@ -1,0 +1,93 @@
+#include "serial_port.h" 
+#if defined(_LINUX32) || defined (_LINUX64) 
+#include <stdlib.h> 
+#include <pthread.h> 
+#include <unistd.h> 
+#include <sys/file.h> 
+#include <errno.h> 
+#endif
+
+int BaudRates[BAUD_LENGTH] = {2400,4800,9600,19200,38400,57600,115200};
+
+#ifdef _WIN32
+DWORD WINAPI CSerial::_W32Thread(void *Param)
+#endif
+#if defined(_LINUX32) || defined(_LINUX64)
+void *_LINUXThread(void *Param)
+#endif
+{
+
+    static int RetCode;
+    CSerial *Serial = ((CSerial*)Param);
+    Serial->OnBeforeMainLoop();
+    Serial->SetWorkingFlag(true);
+	Serial->Connect();
+    while (true)
+    {
+
+        if (Serial->GetStop())
+            break;
+
+        if (Serial->IsConnected())
+       	{
+
+		if(!Serial->GetWriter())   // reader mode
+		{
+	   		RetCode = Serial->Read();
+	    		Serial->SetLength(RetCode);
+
+	    		if (RetCode > -1)
+	    		{
+				Serial->ResetErrors();
+        		}else{
+				if(Serial->GetReconnect())
+        				Serial->SetIsConnected(false);
+			}
+
+		}
+
+	}else{
+		Serial->Reconnect();
+	}
+
+
+#ifdef _WIN32
+        Sleep(THREAD_SLEEP);
+#endif
+#if defined(_LINUX32) || defined(_LINUX64)
+       usleep(THREAD_SLEEP * 1000);
+#endif
+
+    }
+
+    Serial->OnAfterMainLoop();
+    Serial->SetWorkingFlag(false);
+
+
+return 0;
+}
+
+
+CSerial::CSerial()
+{
+    m_Baud = BaudRates[0];
+    m_CheckCRC = true;
+	m_OpenPort = false;
+	m_OldLineBuffer = NULL;
+	m_Working = false;
+	m_Writer = false;
+	m_LineBuffer = NULL;
+	m_ReconnectCounter = 0;
+	m_PharseLine = false;
+	//m_SerialBuffer = (char*)malloc(BUFFER);
+	m_ComPort = NULL;
+	m_Connected = false;
+	m_NoNewSignalCounter = 0;
+	m_NoNewSignal = false;
+	m_LineBufferLength = 0;
+	m_ReadTimeout = DEFAULT_READ_TIMEOUT;
+	m_Reconnect = true;
+}
+
+CSerial::~CSerial()
+{

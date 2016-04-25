@@ -4,9 +4,7 @@
 #include <pthread.h> 
 #include <unistd.h> 
 #include <sys/file.h> 
-//#include <errno.h>
-//#include <linux/serial.h>
-//#include <asm/termios.h>
+#include <errno.h> 
 #endif
 
 int BaudRates[BAUD_LENGTH] = {2400,4800,9600,19200,38400,57600,115200};
@@ -23,10 +21,10 @@ void *_LINUXThread(void *Param)
     CSerial *Serial = ((CSerial*)Param);
     Serial->OnBeforeMainLoop();
     Serial->SetWorkingFlag(true);
-    Serial->Connect();
-    
+	Serial->Connect();
     while (true)
     {
+
         if (Serial->GetStop())
             break;
 
@@ -57,15 +55,16 @@ void *_LINUXThread(void *Param)
         Sleep(THREAD_SLEEP);
 #endif
 #if defined(_LINUX32) || defined(_LINUX64)
-      // usleep(THREAD_SLEEP * 1000);
+       usleep(THREAD_SLEEP * 1000);
 #endif
 
     }
 
     Serial->OnAfterMainLoop();
     Serial->SetWorkingFlag(false);
-    fprintf(stdout,"serial exit\n");
-    pthread_exit(NULL);
+
+
+return 0;
 }
 
 
@@ -88,34 +87,26 @@ CSerial::CSerial()
 	m_LineBufferLength = 0;
 	m_ReadTimeout = DEFAULT_READ_TIMEOUT;
 	m_Reconnect = true;
-	m_Flags = CRTSCTS | CS8 | CLOCAL | CREAD;
-	m_CRCPos = DEFAULT_CRC_POS;
 }
 
 CSerial::~CSerial()
 {
-    m_Stop = true;
-    m_Connected = false;
-    vPorts.clear();
-	ClearTalkers();
-    ClearSignals();
-    ClearLineBuffer();
+    	m_Stop = true;
+    	m_Connected = false;
+    	vPorts.clear();
+    	ClearTalkers();
+   	ClearSignals();
+    	ClearLineBuffer();
 }
 
-void CSerial::SetCRCPos(size_t v)
+void CSerial::SetFlowControl(bool v)
 {
-    m_CRCPos = v;
-}
-
-void CSerial::SetPortFlags(int v)
-{
-	m_Flags = v;
+	m_FlowControl = v;
 }
 
 bool CSerial::GetReconnect()
 {
 	return m_Reconnect;
-
 }
 
 void CSerial::SetReconnect(bool v)
@@ -239,7 +230,7 @@ void CSerial::PharseLine( char *_Data, int _DataLen )
 		if(valid_nmea == 1)
 			OnInvalidNMEA();
 		if(valid_nmea == 2)
-			OnBadCRC(m_LineBuffer);	
+			OnBadCRC();	
 		
 		m_LineBufferLength = strlen((const char*)m_LineBuffer);
 		OnLine((char*)m_LineBuffer, m_LineBufferLength);
@@ -282,7 +273,7 @@ int CSerial::NMEASignal(char *line)
 {
 	m_LinesCount++;
 
-	if(!CheckCRC((const char*)line,m_CRCPos))
+	if(!CheckChecksum((const char*)line))
 	{
 		m_BadCrc++;
 		if(m_CheckCRC)
@@ -312,10 +303,10 @@ int CSerial::NMEASignal(char *line)
 	m_ValidNMEA = true;
 	OnNMEALine(from,strlen((const char*)from));
 	old_from = from;
-#if 0
+
 	AddTalker(from);
 	AddSignal(from, to);
-#endif	
+	
 	if(m_ValidNMEA)
 		return 0;
 	else
@@ -407,16 +398,14 @@ void CSerial::AddSignal(char *data, char *to)
     
 //}
 
-bool CSerial::CheckCRC(const char *nmea_line, size_t chcount) 
-{
+
+bool CSerial::CheckChecksum(const char *nmea_line) {
+
 	const char *xor_chars = "0123456789ABCDEF";
-	//size_t chcount = 1;
+	size_t chcount = 1;
 	int _xor = 0;
 
 	size_t len_nmea = strlen(nmea_line);
-	if(nmea_line[len_nmea - 5] != '*')
-	    return false;
-
 	while ( (chcount < len_nmea) && ( nmea_line[chcount] != '*') )
 	_xor = _xor ^ (unsigned short int)(nmea_line[chcount++]);
 
@@ -428,7 +417,6 @@ bool CSerial::CheckCRC(const char *nmea_line, size_t chcount)
 	    return false;
  
 }
-
 
 void CSerial::ClearLineBuffer(void)
 {
@@ -608,13 +596,7 @@ void CSerial::Stop(bool wait)
 {
     m_Stop = true;
     OnStop();
-    
-    while(m_Working)
-    {
-	usleep(100 * 1000);
-	fprintf(stderr,"Waiting!\n");
-    }
-    
+
     if (m_OpenPort) // wa¿ne w tym miejscu po fladze stop
     {
 		m_OpenPort = false;
@@ -628,9 +610,8 @@ void CSerial::Stop(bool wait)
 #if defined(_LINUX32) || defined(_LINUX64)
 		flock(m_ComPort,LOCK_UN);
 		tcsetattr(m_ComPort, TCSANOW, &m_OldPortSettings);
-		fprintf(stderr,"Begin Close form stopn");
 		int a = close(m_ComPort);
-		fprintf(stderr,"END Close form stop %d\n",a);
+		//fprintf(stderr,"Close form stop %d\n",a);
 		//m_ComPort = -1;
 #endif
 	  
@@ -640,7 +621,13 @@ void CSerial::Stop(bool wait)
 	if(wait)
 		WaitForSingleObject(m_ThreadHANDLE,INFINITE);
 #endif
-   
+#if defined(_LINUX32) || defined(_LINUX64)
+	//	//sleep(0);
+#endif
+     
+   // }
+
+    
     m_BadCrc = 0;
     m_LinesCount = 0;
     m_OldLineLength = 0;
@@ -718,8 +705,8 @@ bool CSerial::Connect(const char *port, int baud_rate)
     m_BadCrc = 0;
     m_LinesCount = 0;
     m_Baud = baud_rate;
-    memcpy(m_Port,port,PORT_NAME_LENGTH);
-    OnConnect();
+    strcpy(m_Port,port);
+	OnConnect();
     OpenPort(port,baud_rate);
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -856,16 +843,15 @@ int CSerial::Read()
 
     tv.tv_sec = 0;
     tv.tv_usec = m_ReadTimeout * 1000;
-    retval = select(m_ComPort,&rfds,NULL,NULL,&tv);
+    retval = select(m_ComPort + 1,&rfds,NULL,NULL,&tv);
     //if(!retval)
     //{
-	//fprintf(stderr,"%s RETVA[%d]\n",GetPortName(),retval);
+//	fprintf(stderr,"%s RETVA[%d]\n",GetPortName(),retval);
 //	return -1;
   //  }
 #endif
 
-    m_BufferLength = ReadPort(m_ComPort,m_SerialBuffer,BUFFER_LENGTH);
-    //fprintf(stderr,"BUFFER:%d\n",m_BufferLength);
+	m_BufferLength = ReadPort(m_ComPort,m_SerialBuffer,BUFFER_LENGTH);
 
     if(m_BufferLength == 0)
     	m_EmptyCount++;
@@ -1001,14 +987,14 @@ void CSerial::OpenPort(const char *port, int baudrate)
 
     if(m_ComPort==-1)
     {
-        fprintf(stderr,"Open port er1");
+        //fprintf(stderr,"Open port er1");
         return;
     }
     error = flock(m_ComPort, LOCK_EX | LOCK_NB );
     if(error==-1)
     {
         close(m_ComPort);
-        fprintf(stderr,"Open port er2");
+                //fprintf(stderr,"Open port er2");
         return;
     }
 
@@ -1016,35 +1002,28 @@ void CSerial::OpenPort(const char *port, int baudrate)
     if(error==-1)
     {
         close(m_ComPort);
-        fprintf(stderr,"Open port er3");
+                //fprintf(stderr,"Open port er3");
         return;
     }
 
     memset(&port_settings, 0, sizeof(port_settings));  /* clear the new struct */
     //port_settings = m_OldPortSettings;
-    
-    //	port_settings.c_cflag = baudr | CRTSCTS | CS8 | CLOCAL | CREAD;
-    //else
-    port_settings.c_cflag =  baudr | m_Flags;
+    if(m_FlowControl)
+    	port_settings.c_cflag = baudr | CRTSCTS | CS8 | CLOCAL | CREAD;
+    else
+    	port_settings.c_cflag =  baudr | CS8 | CLOCAL | CREAD;
     port_settings.c_iflag = IGNPAR;
     port_settings.c_oflag = 0;
-    port_settings.c_cc[VMIN] = 0;      /* block untill n bytes are received */
+    port_settings.c_cc[VMIN] = 1;      /* block untill n bytes are received */
     port_settings.c_cc[VTIME] =  0;     /* block untill a timer expires (n * 100 mSec.) */
     error = tcsetattr(m_ComPort, TCSANOW, &port_settings);
 
-    
     if(error==-1)
     {
         close(m_ComPort);
         fprintf(stderr,"Open port er4");
         return;
     }
-    
-    
-    //struct serial_struct serial;
-    //ioctl(m_ComPort, TIOCGSERIAL, &serial); 
-    //serial.flags |= ASYNC_LOW_LATENCY; // (0x2000)
-    //ioctl(m_ComPort, TIOCSSERIAL, &serial);
 
     return;
 }
@@ -1052,18 +1031,33 @@ void CSerial::OpenPort(const char *port, int baudrate)
 
 int CSerial::ReadPort(int ComPort,char *buf, int size)
 {
+    //int res;
+    //struct timeval timeout;
+    //fd_set readfs;
+    //timeout.tv_usec = 0;
+    //timeout.tv_sec = 5;
+
+    //FD_SET(m_ComPort,&readfs);
+    //res = select(1,&readfs,NULL,NULL,&timeout);
+    //fprintf(stderr,"Read RESULT : %d",res);
+
     int n;
+
+#ifndef __STRICT_ANSI__                       /* __STRICT_ANSI__ is defined when the -ansi option is used for gcc */
+    if(size>SSIZE_MAX)  size = (int)SSIZE_MAX;  /* SSIZE_MAX is defined in limits.h */
+#else
+    if(size>4096)  size = 4096;
+#endif
+
     n = read(ComPort, buf, size);
-    //if(n > 0)
-	//fprintf(stderr,"readport:%d\n",n);
-    return n;
+	fprintf(stderr,"readport:%d\n",n);
+    return(n);
 }
 
 int CSerial::WritePort(int ComPort, char *buf, int size)
 {
     int n;
     n = write(ComPort, buf, size);
-    //fprintf(stderr,"[%d] [%d]\n ",size, n);
     return(n);
 }
 
@@ -1429,7 +1423,7 @@ void CSerial::OnValidNMEA()
 void CSerial::OnInvalidNMEA()
 {
 }
-void CSerial::OnBadCRC(char *line)
+void CSerial::OnBadCRC()
 {
 }
 void CSerial::OnNewTalker(STalker talker)
